@@ -261,7 +261,7 @@ update msg model =
         Navigate _ ->
             ( model , Cmd.none )
 
-subscriptions : Model -> Sub.Sub Msg
+subscriptions : Model -> Sub Msg
 subscriptions _ =
     Time.every 200 Tick
 
