@@ -13,13 +13,13 @@ curl -fsSL https://raw.githubusercontent.com/anzellai/sky-log/main/install.sh | 
 Install to a custom directory:
 
 ```sh
-SKY_LOG_INSTALL_DIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/anzellai/sky-log/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/anzellai/sky-log/main/install.sh | sh -s -- --dir ~/.local/bin
 ```
 
 Install a specific version:
 
 ```sh
-SKY_LOG_VERSION=0.1.0 curl -fsSL https://raw.githubusercontent.com/anzellai/sky-log/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/anzellai/sky-log/main/install.sh | SKY_LOG_VERSION=0.1.0 sh
 ```
 
 ### Supported platforms
