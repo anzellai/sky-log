@@ -1,0 +1,135 @@
+module Log.Webhook exposing (..)
+
+import Sky.Core.Prelude exposing (..)
+import Sky.Core.String as String
+import Sky.Core.List as List
+import Sky.Core.Json.Encode as Encode
+import Os
+import Os.Exec as Exec
+import Regexp
+import Log.Entry exposing (LogEntry, levelToString)
+import Log.Config as Config
+
+type alias WebhookRule =
+    { filter : String , url : String , sourceName : String }
+
+logMsg : String -> Unit
+logMsg msg =
+    let
+        _ =
+            Os.fileWriteString (Os.stderr ()) (msg ++ "\n")
+    in
+        ()
+
+buildRules : Config.AppConfig -> List WebhookRule
+buildRules config =
+    List.filterMap
+        (
+        \source ->
+            let
+                filter =
+                    if String.isEmpty source.filter then
+                        config.webhook.filter
+                    else
+                        source.filter
+                url =
+                    if String.isEmpty source.webhookUrl then
+                        config.webhook.url
+                    else
+                        source.webhookUrl
+            in
+                if String.isEmpty filter || String.isEmpty url then
+                    Nothing
+                else
+                    Just
+                        { filter = filter
+                        , url = url
+                        , sourceName = source.name
+                        }
+        )
+        config.sources
+
+matchesFilter : String -> LogEntry -> Bool
+matchesFilter pattern entry =
+    if String.isEmpty pattern then
+        False
+    else
+        case Regexp.compile ("(?i)" ++ pattern) of
+            Ok re ->
+                Regexp.regexpMatchString re entry.message
+            
+            Err _ ->
+                String.contains (String.toLower pattern)
+                    (String.toLower entry.message)
+
+buildPayload : LogEntry -> String
+buildPayload entry =
+    Encode.encode 0
+        (
+        Encode.object
+            [ ( "source" , Encode.string entry.source )
+            , ( "level" , Encode.string (levelToString entry.level) )
+            , ( "scope" , Encode.string entry.scope )
+            , ( "message" , Encode.string entry.message )
+            , ( "timestamp" , Encode.int entry.timestamp )
+            ]
+        )
+
+send : String -> LogEntry -> Unit
+send url entry =
+    let
+        payload =
+            buildPayload entry
+        cmd =
+            Exec.command "curl"
+                [ "-s"
+                , "-X"
+                , "POST"
+                , "-H"
+                , "Content-Type: application/json"
+                , "-d"
+                , payload
+                , url
+                ]
+        _ =
+            Exec.cmdRun cmd
+    in
+        ()
+
+processNewEntries : List WebhookRule -> List LogEntry -> Unit
+processNewEntries rules entries =
+    if List.isEmpty rules then
+        ()
+    else
+        List.foldl
+            (
+            \entry _ ->
+                List.foldl
+                    (
+                    \rule _ ->
+                        if rule.sourceName == entry.source &&
+                        matchesFilter rule.filter entry then
+                            let
+                                _ =
+                                    logMsg
+                                        (
+                                        "[webhook] filter matched: source=" ++
+                                        entry.source ++
+                                        " filter=" ++
+                                        rule.filter ++
+                                        " message=" ++ entry.message
+                                        )
+                                _ =
+                                    send rule.url entry
+                                _ =
+                                    logMsg ("[webhook] fired: url=" ++ rule.url)
+                            in
+                                ()
+                        else
+                            ()
+                    )
+                    ()
+                    rules
+            )
+            ()
+            entries

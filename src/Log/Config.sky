@@ -1,0 +1,180 @@
+module Log.Config exposing (..)
+
+import Sky.Core.Prelude exposing (..)
+import Sky.Core.String as String
+import Sky.Core.List as List
+import Sky.Core.File as File
+
+type alias Source =
+    { name : String , command : String , filter : String , webhookUrl : String }
+
+type alias WebhookConfig =
+    { url : String , filter : String }
+
+type alias AppConfig =
+    { sources : List Source , webhook : WebhookConfig }
+
+type Section
+    = NoSection
+    | InSource Source
+    | InWebhook WebhookConfig
+
+type alias ParseState =
+    { sources : List Source , webhook : WebhookConfig , section : Section }
+
+emptySource : Source
+emptySource =
+    { name = "" , command = "" , filter = "" , webhookUrl = "" }
+
+emptyWebhook : WebhookConfig
+emptyWebhook =
+    { url = "" , filter = "" }
+
+parseConfig : String -> AppConfig
+parseConfig path =
+    case File.readFile path of
+        Ok content ->
+            content
+                |> String.lines
+                |> parseLines
+                    { sources = []
+                    , webhook = emptyWebhook
+                    , section = NoSection
+                    }
+        
+        Err _ ->
+            { sources = [] , webhook = emptyWebhook }
+
+finalizeState : ParseState -> AppConfig
+finalizeState state =
+    case state.section of
+        InSource s ->
+            { sources = List.append state.sources [ s ]
+            , webhook = state.webhook
+            }
+        
+        InWebhook w ->
+            { sources = state.sources , webhook = w }
+        
+        NoSection ->
+            { sources = state.sources , webhook = state.webhook }
+
+parseLines : ParseState -> List String -> AppConfig
+parseLines state lines =
+    case lines of
+        [] ->
+            finalizeState state
+        
+        line :: rest ->
+            let
+                trimmed =
+                    String.trim line
+            in
+                if trimmed == "[[source]]" then
+                    let
+                        newState =
+                            case state.section of
+                                InSource s ->
+                                    { state
+                                    | sources = List.append state.sources [ s ]
+                                    , section = InSource emptySource
+                                    }
+                                
+                                InWebhook w ->
+                                    { state
+                                    | webhook = w
+                                    , section = InSource emptySource
+                                    }
+                                
+                                NoSection ->
+                                    { state | section = InSource emptySource }
+                    in
+                        parseLines newState rest
+                else
+                    if trimmed == "[webhook]" then
+                        let
+                            newState =
+                                case state.section of
+                                    InSource s ->
+                                        { state
+                                        | sources =
+                                            List.append state.sources [ s ]
+                                        , section = InWebhook state.webhook
+                                        }
+                                    
+                                    _ ->
+                                        { state
+                                        | section = InWebhook state.webhook
+                                        }
+                        in
+                            parseLines newState rest
+                    else
+                        let
+                            newState =
+                                case state.section of
+                                    InSource s ->
+                                        { state
+                                        | section =
+                                            InSource (parseSourceLine trimmed s)
+                                        }
+                                    
+                                    InWebhook w ->
+                                        { state
+                                        | section =
+                                            InWebhook
+                                                (parseWebhookLine trimmed w)
+                                        }
+                                    
+                                    NoSection ->
+                                        state
+                        in
+                            parseLines newState rest
+
+parseSourceLine : String -> Source -> Source
+parseSourceLine line source =
+    if String.startsWith "name" line then
+        { source | name = extractValue line }
+    else
+        if String.startsWith "command" line then
+            { source | command = extractValue line }
+        else
+            if String.startsWith "filter" line then
+                { source | filter = extractValue line }
+            else
+                if String.startsWith "webhook_url" line then
+                    { source | webhookUrl = extractValue line }
+                else
+                    source
+
+parseWebhookLine : String -> WebhookConfig -> WebhookConfig
+parseWebhookLine line webhook =
+    if String.startsWith "url" line then
+        { webhook | url = extractValue line }
+    else
+        if String.startsWith "filter" line then
+            { webhook | filter = extractValue line }
+        else
+            webhook
+
+extractValue : String -> String
+extractValue line =
+    case String.split "=" line of
+        [] ->
+            ""
+        
+        _ :: rest ->
+            rest
+                |> String.join "="
+                |> String.trim
+                |> stripQuotes
+
+stripQuotes : String -> String
+stripQuotes s =
+    let
+        len =
+            String.length s
+    in
+        if String.startsWith "\"" s && String.endsWith "\"" s then
+            String.slice 1 (len - 1) s
+        else
+            s

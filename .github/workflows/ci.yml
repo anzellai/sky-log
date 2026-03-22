@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+
+      - name: Install Sky compiler
+        run: curl -fsSL https://raw.githubusercontent.com/anzellai/sky/main/install.sh | sh
+
+      - name: Install dependencies
+        run: sky install
+
+      - name: Build
+        run: sky build
+
+      - name: Verify binary
+        run: ./dist/app --help 2>&1 || true

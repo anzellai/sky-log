@@ -1,0 +1,103 @@
+module Log.Entry exposing (..)
+
+import Sky.Core.Prelude exposing (..)
+import Sky.Core.Json.Decode as Decode
+import Sky.Core.Json.Decode.Pipeline as Pipeline
+import Sky.Core.String as String
+
+type Level
+    = Debug
+    | Info
+    | Warn
+    | Error
+
+type alias LogEntry =
+    { timestamp : Int
+    , level : Level
+    , scope : String
+    , message : String
+    , source : String
+    }
+
+levelFromString : String -> Level
+levelFromString str =
+    case String.toLower str of
+        "debug" ->
+            Debug
+        
+        "info" ->
+            Info
+        
+        "warn" ->
+            Warn
+        
+        "error" ->
+            Error
+        
+        _ ->
+            Info
+
+levelToString : Level -> String
+levelToString level =
+    case level of
+        Debug ->
+            "DEBUG"
+        
+        Info ->
+            "INFO"
+        
+        Warn ->
+            "WARN"
+        
+        Error ->
+            "ERROR"
+
+levelToInt : Level -> Int
+levelToInt level =
+    case level of
+        Debug ->
+            0
+        
+        Info ->
+            1
+        
+        Warn ->
+            2
+        
+        Error ->
+            3
+
+levelDecoder : Decode.Decoder Level
+levelDecoder =
+    Decode.map levelFromString Decode.string
+
+entryDecoder : Decode.Decoder LogEntry
+entryDecoder =
+    Decode.succeed
+        (
+        \t l s m ->
+            { timestamp = t
+            , level = l
+            , scope = s
+            , message = m
+            , source = ""
+            }
+        )
+        |> Pipeline.required "timestamp" Decode.int
+        |> Pipeline.required "level" levelDecoder
+        |> Pipeline.required "scope" Decode.string
+        |> Pipeline.required "message" Decode.string
+
+decodeEntry : String -> String -> LogEntry
+decodeEntry line source =
+    case Decode.decodeString entryDecoder line of
+        Ok entry ->
+            { entry | source = source }
+        
+        Err _ ->
+            { timestamp = 0
+            , level = Info
+            , scope = "raw"
+            , message = line
+            , source = source
+            }

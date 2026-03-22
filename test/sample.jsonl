@@ -1,0 +1,10 @@
+{"timestamp":1711036801,"level":"info","scope":"compiler","message":"compilation started"}
+{"timestamp":1711036802,"level":"debug","scope":"parser","message":"parsing module App.Main"}
+{"timestamp":1711036802,"level":"debug","scope":"parser","message":"resolved 12 imports"}
+{"timestamp":1711036803,"level":"info","scope":"typechecker","message":"type checking module App.Main"}
+{"timestamp":1711036803,"level":"warn","scope":"typechecker","message":"unused variable 'temp' in function 'process'"}
+{"timestamp":1711036804,"level":"error","scope":"typechecker","message":"type mismatch: expected String, got Int in App.Main:42"}
+{"timestamp":1711036804,"level":"info","scope":"compiler","message":"compilation finished with 1 error"}
+{"timestamp":1711036805,"level":"debug","scope":"codegen","message":"generated 847 lines of Go code"}
+{"timestamp":1711036805,"level":"info","scope":"builder","message":"running go build"}
+{"timestamp":1711036806,"level":"error","scope":"builder","message":"build failed: exit code 1"}

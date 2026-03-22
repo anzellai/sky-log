@@ -1,0 +1,710 @@
+module Web.App exposing (main)
+
+import Sky.Core.Prelude exposing (..)
+import Sky.Core.Platform as Platform
+import Sky.Core.String as String
+import Sky.Core.List as List
+import Sky.Core.File as File
+import Sky.Core.Dict as Dict
+import Os
+import Os.Exec as Exec
+import Bufio
+import Std.Html exposing (..)
+import Std.Html.Attributes exposing (..)
+import Std.Css exposing (..)
+import Std.Live exposing (app, route)
+import Std.Live.Events exposing (onClick, onInput, onChange)
+import Std.Cmd as Cmd
+import Std.Sub as Sub
+import Std.Time as Time
+import Regexp
+import Log.Entry as Entry exposing (..)
+import Log.Config as Config
+import Log.Webhook as Webhook
+
+type Page
+    = LogPage
+
+type alias SourceScanner =
+    { scanner : Bufio.Scanner , label : String }
+
+type alias WatchedFile =
+    { path : String , label : String }
+
+type SourceMode
+    = FileMode
+    | StreamMode
+
+type alias Model =
+    { entries : List LogEntry
+    , levelFilter : String
+    , scopeFilter : String
+    , searchFilter : String
+    , sourceFilter : String
+    , autoScroll : Bool
+    , theme : String
+    , watched : List WatchedFile
+    , scanners : List SourceScanner
+    , fileCounts : Dict.Dict String Int
+    , sourceMode : SourceMode
+    , webhookRules : List Webhook.WebhookRule
+    }
+
+type Msg
+    = Tick
+    | SetLevelFilter String
+    | SetScopeFilter String
+    | SetSearchFilter String
+    | SetSourceFilter String
+    | ToggleAutoScroll
+    | ToggleTheme
+    | ClearLogs
+    | Navigate Page
+
+readFileEntries : WatchedFile -> List LogEntry
+readFileEntries source =
+    case File.readFile source.path of
+        Ok content ->
+            content
+                |> String.lines
+                |> List.filter (\l -> not (String.isEmpty l))
+                |> List.map (\l -> Entry.decodeEntry l source.label)
+        
+        Err _ ->
+            []
+
+collectFileEntries : List WatchedFile -> Dict.Dict String Int -> List LogEntry -> { entries : List LogEntry
+, counts : Dict.Dict String Int
+, newEntries : List LogEntry
+}
+collectFileEntries watched counts existing =
+    List.foldl
+        (
+        \source acc ->
+            let
+                seen =
+                    case Dict.get source.path acc.counts of
+                        Just n ->
+                            n
+                        
+                        Nothing ->
+                            0
+                allEntries =
+                    readFileEntries source
+                total =
+                    List.length allEntries
+                newOnes =
+                    List.drop seen allEntries
+            in
+                { entries = List.append acc.entries newOnes
+                , counts = Dict.insert source.path total acc.counts
+                , newEntries = List.append acc.newEntries newOnes
+                }
+        )
+        { entries = existing , counts = counts , newEntries = [] }
+        watched
+
+scanLine : SourceScanner -> Maybe LogEntry
+scanLine source =
+    if Bufio.scannerScan source.scanner then
+        Just (Entry.decodeEntry (Bufio.scannerText source.scanner) source.label)
+    else
+        Nothing
+
+collectStreamEntries : List SourceScanner -> List LogEntry
+collectStreamEntries scanners =
+    List.filterMap scanLine scanners
+
+initStdinScanner : SourceScanner
+initStdinScanner =
+    { scanner = Bufio.newScanner (Os.stdin ()) , label = "stdin" }
+
+initCommandScanner : Config.Source -> Maybe SourceScanner
+initCommandScanner source =
+    let
+        cmd =
+            Exec.command "sh" [ "-c" , source.command ]
+    in
+        case Exec.cmdStdoutPipe cmd of
+            Ok pipe ->
+                case Exec.cmdStart cmd of
+                    Ok _ ->
+                        Just
+                            { scanner = Bufio.newScanner pipe
+                            , label = source.name
+                            }
+                    
+                    Err _ ->
+                        Nothing
+            
+            Err _ ->
+                Nothing
+
+resolveMode : List String -> List Config.Source -> { watched : List WatchedFile
+, scanners : List SourceScanner
+, mode : SourceMode
+}
+resolveMode args sources =
+    if not (List.isEmpty args) then
+        { watched = List.map (\f -> { path = f , label = f }) args
+        , scanners = []
+        , mode = FileMode
+        }
+    else
+        let
+            cmdScanners =
+                List.filterMap initCommandScanner sources
+        in
+            if not (List.isEmpty cmdScanners) then
+                { watched = [] , scanners = cmdScanners , mode = StreamMode }
+            else
+                { watched = []
+                , scanners = [ initStdinScanner ]
+                , mode = StreamMode
+                }
+
+init : Page -> ( Model, Cmd.Cmd Msg )
+init _ =
+    let
+        args =
+            Platform.getArgs ()
+                |> List.drop 1
+                |> List.filter (\a -> not (String.startsWith "-" a))
+        config =
+            Config.parseConfig "sky-log.toml"
+        resolved =
+            resolveMode args config.sources
+        webhookRules =
+            Webhook.buildRules config
+        result =
+            collectFileEntries resolved.watched Dict.empty []
+    in
+        ( { entries = result.entries
+          , levelFilter = ""
+          , scopeFilter = ""
+          , searchFilter = ""
+          , sourceFilter = ""
+          , autoScroll = True
+          , theme = "dark"
+          , watched = resolved.watched
+          , scanners = resolved.scanners
+          , fileCounts = result.counts
+          , sourceMode = resolved.mode
+          , webhookRules = webhookRules
+          }
+        , Cmd.none
+        )
+
+update : Msg -> Model -> ( Model, Cmd.Cmd Msg )
+update msg model =
+    case msg of
+        Tick ->
+            case model.sourceMode of
+                FileMode ->
+                    let
+                        result =
+                            collectFileEntries model.watched model.fileCounts
+                                model.entries
+                        _ =
+                            Webhook.processNewEntries model.webhookRules
+                                result.newEntries
+                    in
+                        ( { model
+                          | entries = result.entries
+                          , fileCounts = result.counts
+                          }
+                        , Cmd.none
+                        )
+                
+                StreamMode ->
+                    let
+                        newEntries =
+                            collectStreamEntries model.scanners
+                        _ =
+                            Webhook.processNewEntries model.webhookRules
+                                newEntries
+                    in
+                        ( { model
+                          | entries = List.append model.entries newEntries
+                          }
+                        , Cmd.none
+                        )
+        
+        SetLevelFilter value ->
+            ( { model | levelFilter = value } , Cmd.none )
+        
+        SetScopeFilter value ->
+            ( { model | scopeFilter = value } , Cmd.none )
+        
+        SetSearchFilter value ->
+            ( { model | searchFilter = value } , Cmd.none )
+        
+        SetSourceFilter value ->
+            ( { model | sourceFilter = value } , Cmd.none )
+        
+        ToggleAutoScroll ->
+            ( { model | autoScroll = not model.autoScroll } , Cmd.none )
+        
+        ToggleTheme ->
+            let
+                newTheme =
+                    if model.theme == "dark" then
+                        "light"
+                    else
+                        "dark"
+            in
+                ( { model | theme = newTheme } , Cmd.none )
+        
+        ClearLogs ->
+            ( { model | entries = [] } , Cmd.none )
+        
+        Navigate _ ->
+            ( model , Cmd.none )
+
+subscriptions : Model -> Sub.Sub Msg
+subscriptions _ =
+    Time.every 200 Tick
+
+filterEntry : String -> String -> String -> String -> LogEntry -> Bool
+filterEntry levelStr scopeStr searchStr sourceStr entry =
+    let
+        levelOk =
+            if String.isEmpty levelStr then
+                True
+            else
+                Entry.levelToInt entry.level >=
+                Entry.levelToInt (Entry.levelFromString levelStr)
+        scopeOk =
+            if String.isEmpty scopeStr then
+                True
+            else
+                String.contains (String.toLower scopeStr)
+                    (String.toLower entry.scope)
+        searchOk =
+            if String.isEmpty searchStr then
+                True
+            else
+                case Regexp.compile ("(?i)" ++ searchStr) of
+                    Ok re ->
+                        Regexp.regexpMatchString re entry.message
+                    
+                    Err _ ->
+                        String.contains (String.toLower searchStr)
+                            (String.toLower entry.message)
+        sourceOk =
+            if String.isEmpty sourceStr then
+                True
+            else
+                entry.source == sourceStr
+    in
+        levelOk && scopeOk && searchOk && sourceOk
+
+levelColor : Level -> String
+levelColor level =
+    case level of
+        Debug ->
+            "#64748b"
+        
+        Info ->
+            "#60a5fa"
+        
+        Warn ->
+            "#fbbf24"
+        
+        Error ->
+            "#f87171"
+
+levelClass : Level -> String
+levelClass level =
+    case level of
+        Error ->
+            "log-entry l-error"
+        
+        Warn ->
+            "log-entry l-warn"
+        
+        _ ->
+            "log-entry"
+
+formatTimestamp : Int -> String
+formatTimestamp ts =
+    let
+        secs =
+            if ts > 9999999999 then
+                ts / 1000
+            else
+                ts
+        totalSeconds =
+            secs - ((secs / 86400) * 86400)
+        h =
+            totalSeconds / 3600
+        remainder =
+            totalSeconds - (h * 3600)
+        m =
+            remainder / 60
+        s =
+            remainder - (m * 60)
+    in
+        padZero h ++ ":" ++ padZero m ++ ":" ++ padZero s
+
+padZero : Int -> String
+padZero n =
+    if n < 10 then
+        "0" ++ String.fromInt n
+    else
+        String.fromInt n
+
+viewEntry : LogEntry -> VNode
+viewEntry entry =
+    div [ class (levelClass entry.level) ]
+        [ span [ class "ts" ] [ text (formatTimestamp entry.timestamp) ]
+        , span [ class "level" , style ("color:" ++ levelColor entry.level) ]
+            [ text
+                (
+                String.toUpper
+                    (String.padRight 5 " " (Entry.levelToString entry.level))
+                )
+            ]
+        , span [ class "source" ] [ text entry.source ]
+        , span [ class "scope" ] [ text entry.scope ]
+        , span [ class "msg" ] [ text entry.message ]
+        ]
+
+viewEntries : List LogEntry -> VNode
+viewEntries entries =
+    if List.isEmpty entries then
+        div [ class "empty" ] [ text "Waiting for logs..." ]
+    else
+        div [ id "log-entries" ]
+            (
+            List.map viewEntry
+                (List.take 5000 (List.reverse (List.reverse entries)))
+            )
+
+statusText : Model -> String
+statusText model =
+    case model.sourceMode of
+        FileMode ->
+            "Watching " ++
+            String.fromInt (List.length model.watched) ++ " file(s)"
+        
+        StreamMode ->
+            let
+                labels =
+                    List.map (\s -> s.label) model.scanners
+            in
+                "Streaming: " ++ String.join ", " labels
+
+styles : VNode
+styles =
+    styleNode []
+        (
+        stylesheet
+            [ rule "*"
+                [ margin (zero ())
+                , padding (zero ())
+                , property "box-sizing" "border-box"
+                ]
+            , rule "html, body" [ height (pct 100) , overflow "hidden" ]
+            , rule ".root.dark"
+                [ property "--bg" "#0a0e14"
+                , property "--fg" "#c5cdd8"
+                , property "--muted" "#64748b"
+                , property "--dimmed" "#475569"
+                , property "--input-bg" "#0a0e14"
+                , property "--input-border" "rgba(255,255,255,0.12)"
+                , property "--border" "rgba(255,255,255,0.06)"
+                , property "--hover" "rgba(255,255,255,0.02)"
+                , property "--scroll-thumb" "rgba(255,255,255,0.08)"
+                , property "--scroll-hover" "rgba(255,255,255,0.15)"
+                , property "--btn-border" "rgba(255,255,255,0.08)"
+                , property "--btn-hover-fg" "#c5cdd8"
+                , property "--btn-hover-border" "rgba(255,255,255,0.15)"
+                ]
+            , rule ".root.light"
+                [ property "--bg" "#ffffff"
+                , property "--fg" "#1e293b"
+                , property "--muted" "#94a3b8"
+                , property "--dimmed" "#94a3b8"
+                , property "--input-bg" "#f8fafc"
+                , property "--input-border" "#d1d5db"
+                , property "--border" "#e5e7eb"
+                , property "--hover" "rgba(0,0,0,0.02)"
+                , property "--scroll-thumb" "rgba(0,0,0,0.12)"
+                , property "--scroll-hover" "rgba(0,0,0,0.2)"
+                , property "--btn-border" "#d1d5db"
+                , property "--btn-hover-fg" "#1e293b"
+                , property "--btn-hover-border" "#9ca3af"
+                ]
+            , rule "body"
+                [ backgroundColor (hex "#0a0e14")
+                , color (hex "#c5cdd8")
+                , fontFamily
+                    "'SF Mono', 'JetBrains Mono', ui-monospace, Menlo, monospace"
+                , fontSize (px 11)
+                , property "-webkit-font-smoothing" "antialiased"
+                ]
+            , rule ".root"
+                [ position "fixed"
+                , top (zero ())
+                , property "left" "0"
+                , property "right" "0"
+                , bottom (zero ())
+                , display "flex"
+                , flexDirection "column"
+                , overflow "hidden"
+                , backgroundColor "var(--bg, #0a0e14)"
+                , color "var(--fg, #c5cdd8)"
+                ]
+            , rule ".toolbar"
+                [ display "flex"
+                , alignItems "center"
+                , gap (px 8)
+                , padding2 (px 6) (px 12)
+                , property "border-bottom" "1px solid var(--border)"
+                , property "flex-shrink" "0"
+                ]
+            , rule ".toolbar h1"
+                [ fontSize (px 11)
+                , fontWeight "500"
+                , color "var(--muted)"
+                , property "margin-right" "4px"
+                ]
+            , rule ".toolbar h1 span" [ color "var(--fg)" , fontWeight "600" ]
+            , rule ".toolbar select, .toolbar input"
+                [ backgroundColor "var(--input-bg)"
+                , color "var(--fg)"
+                , property "border" "1px solid var(--input-border)"
+                , borderRadius (px 4)
+                , padding2 (px 3) (px 6)
+                , fontFamily "inherit"
+                , fontSize (px 11)
+                , property "outline" "none"
+                , transition "border-color 0.15s"
+                ]
+            , rule ".toolbar select:focus, .toolbar input:focus"
+                [ borderColor (hex "#60a5fa") ]
+            , rule ".toolbar input" [ width (px 120) ]
+            , rule ".spacer" [ flex "1" ]
+            , rule ".stats" [ color "var(--dimmed)" , fontSize (px 11) ]
+            , rule ".btn"
+                [ backgroundColor "transparent"
+                , color "var(--muted)"
+                , property "border" "1px solid var(--btn-border)"
+                , borderRadius (px 4)
+                , padding2 (px 3) (px 8)
+                , fontFamily "inherit"
+                , fontSize (px 11)
+                , cursor "pointer"
+                , transition "all 0.15s"
+                , property "user-select" "none"
+                ]
+            , rule ".btn:hover"
+                [ color "var(--btn-hover-fg)"
+                , property "border-color" "var(--btn-hover-border)"
+                ]
+            , rule ".btn.active"
+                [ color (hex "#60a5fa") , borderColor "rgba(96,165,250,0.3)" ]
+            , rule ".btn.danger:hover"
+                [ color (hex "#f87171") , borderColor "rgba(248,113,113,0.3)" ]
+            , rule "#log-entries"
+                [ flex "1"
+                , property "min-height" "0"
+                , property "overflow-y" "scroll"
+                ]
+            , rule "#log-entries::-webkit-scrollbar" [ width (px 6) ]
+            , rule "#log-entries::-webkit-scrollbar-track"
+                [ backgroundColor "transparent" ]
+            , rule "#log-entries::-webkit-scrollbar-thumb"
+                [ property "background-color" "var(--scroll-thumb)"
+                , borderRadius (px 3)
+                ]
+            , rule "#log-entries::-webkit-scrollbar-thumb:hover"
+                [ property "background-color" "var(--scroll-hover)" ]
+            , rule ".log-entry"
+                [ display "flex"
+                , alignItems "baseline"
+                , padding2 (px 0) (px 12)
+                , property "line-height" "18px"
+                , gap (px 8)
+                , borderLeft "2px solid transparent"
+                ]
+            , rule ".log-entry:hover" [ backgroundColor "var(--hover)" ]
+            , rule ".log-entry.l-error"
+                [ borderLeft "2px solid rgba(248,113,113,0.5)"
+                , backgroundColor "rgba(248,113,113,0.03)"
+                ]
+            , rule ".log-entry.l-warn"
+                [ borderLeft "2px solid rgba(251,191,36,0.4)"
+                , backgroundColor "rgba(251,191,36,0.02)"
+                ]
+            , rule ".ts"
+                [ color "var(--dimmed)"
+                , property "white-space" "nowrap"
+                , minWidth (px 56)
+                , property "font-variant-numeric" "tabular-nums"
+                ]
+            , rule ".level"
+                [ fontWeight "600"
+                , property "white-space" "nowrap"
+                , minWidth (px 40)
+                , textTransform "uppercase"
+                , letterSpacing "0.3px"
+                ]
+            , rule ".source"
+                [ property "white-space" "nowrap"
+                , maxWidth (px 100)
+                , overflow "hidden"
+                , property "text-overflow" "ellipsis"
+                , color (hex "#a78bfa")
+                , backgroundColor "rgba(167,139,250,0.08)"
+                , padding2 (px 0) (px 4)
+                , borderRadius (px 3)
+                ]
+            , rule ".scope"
+                [ color (hex "#34d399")
+                , property "white-space" "nowrap"
+                , maxWidth (px 120)
+                , overflow "hidden"
+                , property "text-overflow" "ellipsis"
+                ]
+            , rule ".msg"
+                [ color "var(--fg)"
+                , property "word-break" "break-word"
+                , flex "1"
+                ]
+            , rule ".empty"
+                [ display "flex"
+                , alignItems "center"
+                , justifyContent "center"
+                , height (pct 100)
+                , color "var(--dimmed)"
+                ]
+            , rule ".status"
+                [ display "flex"
+                , alignItems "center"
+                , gap (px 6)
+                , padding2 (px 4) (px 12)
+                , property "border-top" "1px solid var(--border)"
+                , fontSize (px 10)
+                , color "var(--dimmed)"
+                , property "flex-shrink" "0"
+                ]
+            , rule ".dot"
+                [ width (px 5)
+                , height (px 5)
+                , borderRadius (pct 50)
+                , backgroundColor (hex "#34d399")
+                , property "box-shadow" "0 0 4px rgba(52,211,153,0.4)"
+                ]
+            ]
+        )
+
+uniqueSources : List LogEntry -> List String
+uniqueSources entries =
+    entries
+        |> List.map (\e -> e.source)
+        |> List.filter (\s -> not (String.isEmpty s))
+        |> List.foldl
+            (
+            \s acc ->
+                if List.member s acc then
+                    acc
+                else
+                    List.append acc [ s ]
+            )
+            []
+
+view : Model -> VNode
+view model =
+    let
+        filtered =
+            model.entries
+                |> List.filter
+                    (
+                    filterEntry model.levelFilter model.scopeFilter
+                        model.searchFilter
+                        model.sourceFilter
+                    )
+        sources =
+            uniqueSources model.entries
+        totalCount =
+            List.length model.entries
+        filteredCount =
+            List.length filtered
+        scrollLabel =
+            if model.autoScroll then
+                "Auto-scroll"
+            else
+                "Paused"
+        scrollClass =
+            if model.autoScroll then
+                "btn active"
+            else
+                "btn"
+        themeIcon =
+            if model.theme == "dark" then
+                "☼"
+            else
+                "☾"
+    in
+        div [ class ("root " ++ model.theme) ]
+            [ styles
+            , div [ class "toolbar" ]
+                [ h1 [] [ text "sky" , span [] [ text "-log" ] ]
+                , button [ class "btn" , onClick ToggleTheme ]
+                    [ text themeIcon ]
+                , select [ id "level-filter" , onChange SetLevelFilter ]
+                    [ option [ value "" ] [ text "Level" ]
+                    , option [ value "debug" ] [ text "DEBUG" ]
+                    , option [ value "info" ] [ text "INFO" ]
+                    , option [ value "warn" ] [ text "WARN" ]
+                    , option [ value "error" ] [ text "ERROR" ]
+                    ]
+                , input
+                    [ id "scope-filter"
+                    , type_ "text"
+                    , placeholder "scope"
+                    , onInput SetScopeFilter
+                    ]
+                , input
+                    [ id "search-filter"
+                    , type_ "text"
+                    , placeholder "regex search"
+                    , onInput SetSearchFilter
+                    ]
+                , select [ id "source-filter" , onChange SetSourceFilter ]
+                    (
+                    List.append [ option [ value "" ] [ text "Source" ] ]
+                        (List.map (\s -> option [ value s ] [ text s ]) sources)
+                    )
+                , div [ class "spacer" ] []
+                , button [ class scrollClass , onClick ToggleAutoScroll ]
+                    [ text scrollLabel ]
+                , button [ class "btn danger" , onClick ClearLogs ]
+                    [ text "Clear" ]
+                ]
+            , viewEntries filtered
+            , div [ class "status" ]
+                [ span [ class "dot" ] []
+                , text (statusText model)
+                , div [ class "spacer" ] []
+                , span [ class "stats" ]
+                    [ text
+                        (
+                        String.fromInt filteredCount ++
+                        "/" ++ String.fromInt totalCount
+                        )
+                    ]
+                ]
+            ]
+
+main =
+    app
+        { init = init
+        , update = update
+        , view = view
+        , subscriptions = subscriptions
+        , routes = [ route "/" LogPage ]
+        , notFound = LogPage
+        }

@@ -1,0 +1,13 @@
+name = "sky-log"
+version = "0.1.0"
+entry = "src/Main.sky"
+bin = "dist/app"
+
+[source]
+root = "src"
+
+["go.dependencies"]
+os = "latest"
+"os/exec" = "latest"
+bufio = "latest"
+regexp = "latest"
