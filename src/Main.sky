@@ -2,11 +2,15 @@ module Main exposing (main)
 
 import Sky.Core.Prelude exposing (..)
 import Sky.Core.Platform as Platform
+import Sky.Core.Process as Process
 import Sky.Core.String as String
 import Sky.Core.List as List
 import Sky.Core.File as File
 import Sky.Core.Dict as Dict
+import Os
 import Os.Exec as Exec
+import Bufio
+import Std.Log exposing (println)
 import Std.Html exposing (..)
 import Std.Html.Attributes exposing (..)
 import Std.Css exposing (..)
@@ -20,11 +24,22 @@ import Log.Entry as Entry exposing (..)
 import Log.Config as Config
 import Log.Webhook as Webhook
 
+helpText : String
+helpText =
+    "sky-log — real-time log viewer\n\nUsage:\n  sky-log [options] [file ...]\n  command | sky-log\n\nOptions:\n  -h, --help    Show this help message\n\nExamples:\n  sky-log app.log                  Watch a log file\n  sky-log app.log server.log       Watch multiple files\n  tail -f /var/log/syslog | sky-log  Pipe stdin\n  sky-log                          Use sources from sky-log.toml\n"
+
 type Page
     = LogPage
 
+type alias SourceScanner =
+    { scanner : Bufio.Scanner , label : String }
+
 type alias WatchedFile =
     { path : String , label : String }
+
+type SourceMode
+    = FileMode
+    | StreamMode
 
 type alias Model =
     { entries : List LogEntry
@@ -35,7 +50,9 @@ type alias Model =
     , autoScroll : Bool
     , theme : String
     , watched : List WatchedFile
+    , scanners : List SourceScanner
     , fileCounts : Dict.Dict String Int
+    , sourceMode : SourceMode
     , webhookRules : List Webhook.WebhookRule
     }
 
@@ -93,53 +110,90 @@ collectFileEntries watched counts existing =
         { entries = existing , counts = counts , newEntries = [] }
         watched
 
-tmpDir : String
-tmpDir =
-    "/tmp/sky-log"
+scanLine : SourceScanner -> Maybe LogEntry
+scanLine source =
+    if Bufio.scannerScan source.scanner then
+        Just (Entry.decodeEntry (Bufio.scannerText source.scanner) source.label)
+    else
+        Nothing
 
-startCommandToFile : Config.Source -> Int -> Maybe WatchedFile
-startCommandToFile source idx =
+collectStreamEntries : List SourceScanner -> List LogEntry
+collectStreamEntries scanners =
+    List.filterMap scanLine scanners
+
+initStdinScanner : SourceScanner
+initStdinScanner =
+    { scanner = Bufio.newScanner (Os.stdin ()) , label = "stdin" }
+
+initCommandScanner : Config.Source -> Maybe SourceScanner
+initCommandScanner source =
     let
-        _ =
-            File.mkdirAll tmpDir
-        outPath =
-            tmpDir ++ "/source-" ++ String.fromInt idx ++ ".log"
-        _ =
-            File.writeFile outPath ""
         cmd =
-            Exec.command "sh"
-                [ "-c" , source.command ++ " >> " ++ outPath ++ " 2>&1" ]
+            Exec.command "sh" [ "-c" , source.command ]
     in
-        case Exec.cmdStart cmd of
-            Ok _ ->
-                Just { path = outPath , label = source.name }
+        case Exec.cmdStdoutPipe cmd of
+            Ok pipe ->
+                case Exec.cmdStart cmd of
+                    Ok _ ->
+                        Just
+                            { scanner = Bufio.newScanner pipe
+                            , label = source.name
+                            }
+                    
+                    Err _ ->
+                        Nothing
             
             Err _ ->
                 Nothing
 
-resolveWatched : List String -> List Config.Source -> List WatchedFile
-resolveWatched args sources =
+resolveMode : List String -> List Config.Source -> { watched : List WatchedFile
+, scanners : List SourceScanner
+, mode : SourceMode
+}
+resolveMode args sources =
     if not (List.isEmpty args) then
-        List.map (\f -> { path = f , label = f }) args
+        { watched = List.map (\f -> { path = f , label = f }) args
+        , scanners = []
+        , mode = FileMode
+        }
     else
-        List.filterMap identity
-            (List.indexedMap (\i s -> startCommandToFile s i) sources)
+        let
+            cmdScanners =
+                List.filterMap initCommandScanner sources
+        in
+            if not (List.isEmpty cmdScanners) then
+                { watched = [] , scanners = cmdScanners , mode = StreamMode }
+            else
+                { watched = []
+                , scanners = [ initStdinScanner ]
+                , mode = StreamMode
+                }
 
 init : Page -> ( Model, Cmd.Cmd Msg )
 init _ =
     let
-        args =
+        rawArgs =
             Platform.getArgs ()
                 |> List.drop 1
-                |> List.filter (\a -> not (String.startsWith "-" a))
+        _ =
+            if List.any (\a -> a == "--help" || a == "-h") rawArgs then
+                let
+                    _ =
+                        println "" helpText
+                in
+                    Process.exit 0
+            else
+                ()
+        args =
+            List.filter (\a -> not (String.startsWith "-" a)) rawArgs
         config =
             Config.parseConfig "sky-log.toml"
-        watched =
-            resolveWatched args config.sources
+        resolved =
+            resolveMode args config.sources
         webhookRules =
             Webhook.buildRules config
         result =
-            collectFileEntries watched Dict.empty []
+            collectFileEntries resolved.watched Dict.empty []
     in
         ( { entries = result.entries
           , levelFilter = ""
@@ -148,8 +202,10 @@ init _ =
           , sourceFilter = ""
           , autoScroll = True
           , theme = "dark"
-          , watched = watched
+          , watched = resolved.watched
+          , scanners = resolved.scanners
           , fileCounts = result.counts
+          , sourceMode = resolved.mode
           , webhookRules = webhookRules
           }
         , Cmd.none
@@ -159,20 +215,36 @@ update : Msg -> Model -> ( Model, Cmd.Cmd Msg )
 update msg model =
     case msg of
         Tick ->
-            let
-                result =
-                    collectFileEntries model.watched model.fileCounts
-                        model.entries
-                _ =
-                    Webhook.processNewEntries model.webhookRules
-                        result.newEntries
-            in
-                ( { model
-                  | entries = result.entries
-                  , fileCounts = result.counts
-                  }
-                , Cmd.none
-                )
+            case model.sourceMode of
+                FileMode ->
+                    let
+                        result =
+                            collectFileEntries model.watched model.fileCounts
+                                model.entries
+                        _ =
+                            Webhook.processNewEntries model.webhookRules
+                                result.newEntries
+                    in
+                        ( { model
+                          | entries = result.entries
+                          , fileCounts = result.counts
+                          }
+                        , Cmd.none
+                        )
+                
+                StreamMode ->
+                    let
+                        newEntries =
+                            collectStreamEntries model.scanners
+                        _ =
+                            Webhook.processNewEntries model.webhookRules
+                                newEntries
+                    in
+                        ( { model
+                          | entries = List.append model.entries newEntries
+                          }
+                        , Cmd.none
+                        )
         
         SetLevelFilter value ->
             ( { model | levelFilter = value } , Cmd.none )
@@ -315,13 +387,22 @@ viewEntries entries =
 
 statusText : Model -> String
 statusText model =
-    let
-        labels =
-            List.map (\w -> w.label) model.watched
-    in
-        "Watching " ++
-        String.fromInt (List.length model.watched) ++
-        " source(s): " ++ String.join ", " labels
+    case model.sourceMode of
+        FileMode ->
+            let
+                labels =
+                    List.map (\w -> w.label) model.watched
+            in
+                "Watching " ++
+                String.fromInt (List.length model.watched) ++
+                " source(s): " ++ String.join ", " labels
+        
+        StreamMode ->
+            let
+                labels =
+                    List.map (\s -> s.label) model.scanners
+            in
+                "Streaming: " ++ String.join ", " labels
 
 styles : VNode
 styles =
