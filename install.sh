@@ -1,11 +1,22 @@
 #!/bin/sh
 # sky-log Installer
 # Usage: curl -fsSL https://raw.githubusercontent.com/anzellai/sky-log/main/install.sh | sh
+#    or: curl -fsSL ... | SKY_LOG_INSTALL_DIR=~/.local/bin sh
+#    or: curl -fsSL ... | sh -s -- --dir ~/.local/bin
 #
 # Environment variables:
 #   SKY_LOG_VERSION      - specific version to install (default: latest)
 #   SKY_LOG_INSTALL_DIR  - installation directory (default: /usr/local/bin)
 set -e
+
+# Parse --dir argument
+for arg in "$@"; do
+    case "$arg" in
+        --dir=*) SKY_LOG_INSTALL_DIR="${arg#--dir=}" ;;
+        --dir)   shift; SKY_LOG_INSTALL_DIR="$1" ;;
+    esac
+    shift 2>/dev/null || true
+done
 
 REPO="anzellai/sky-log"
 BINARY_NAME="sky-log"
