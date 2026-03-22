@@ -32,4 +32,4 @@ jobs:
         run: sky build
 
       - name: Verify binary
-        run: test -x ./dist/app && echo "Binary OK ($(file ./dist/app | cut -d: -f2))"
+        run: test -x ./dist/app && file ./dist/app
