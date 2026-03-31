@@ -1,0 +1,7 @@
+[webhook]
+url = "https://dev.settleby.anzel.me/hello"
+filter = "panic"
+
+[[source]]
+name = "docker"
+command = "cd /Users/anzel/works/settleby/settleby-app && docker compose logs -f"

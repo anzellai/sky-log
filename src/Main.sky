@@ -1,7 +1,7 @@
 module Main exposing (main)
 
 import Sky.Core.Prelude exposing (..)
-import Sky.Core.Platform as Platform
+import Sky.Core.Args as Args
 import Sky.Core.Process as Process
 import Sky.Core.String as String
 import Sky.Core.List as List
@@ -112,8 +112,11 @@ collectFileEntries watched counts existing =
 
 scanLine : SourceScanner -> Maybe LogEntry
 scanLine source =
-    if Bufio.scannerScan source.scanner then
-        Just (Entry.decodeEntry (Bufio.scannerText source.scanner) source.label)
+    if Result.withDefault False (Bufio.scannerScan source.scanner) then
+        let
+            text = Result.withDefault "" (Bufio.scannerText source.scanner)
+        in
+            Just (Entry.decodeEntry text source.label)
     else
         Nothing
 
@@ -121,30 +124,43 @@ collectStreamEntries : List SourceScanner -> List LogEntry
 collectStreamEntries scanners =
     List.filterMap scanLine scanners
 
-initStdinScanner : SourceScanner
 initStdinScanner =
-    { scanner = Bufio.newScanner (Os.stdin ()) , label = "stdin" }
+    case Bufio.newScanner (identity (Os.stdin ())) of
+
+        Ok scanner ->
+            Just { scanner = scanner , label = "stdin" }
+
+        Err _ ->
+            Nothing
+
 
 initCommandScanner : Config.Source -> Maybe SourceScanner
 initCommandScanner source =
-    let
-        cmd =
-            Exec.command "sh" [ "-c" , source.command ]
-    in
-        case Exec.cmdStdoutPipe cmd of
-            Ok pipe ->
-                case Exec.cmdStart cmd of
-                    Ok _ ->
-                        Just
-                            { scanner = Bufio.newScanner pipe
-                            , label = source.name
-                            }
-                    
-                    Err _ ->
-                        Nothing
-            
-            Err _ ->
-                Nothing
+    case Exec.command "sh" [ "-c" , source.command ] of
+
+        Ok cmd ->
+            case Exec.cmdStdoutPipe cmd of
+
+                Ok pipe ->
+                    case Exec.cmdStart cmd of
+
+                        Ok _ ->
+                            case Bufio.newScanner (identity pipe) of
+
+                                Ok scanner ->
+                                    Just { scanner = scanner , label = source.name }
+
+                                Err _ ->
+                                    Nothing
+
+                        Err _ ->
+                            Nothing
+
+                Err _ ->
+                    Nothing
+
+        Err _ ->
+            Nothing
 
 resolveMode : List String -> List Config.Source -> { watched : List WatchedFile
 , scanners : List SourceScanner
@@ -165,7 +181,7 @@ resolveMode args sources =
                 { watched = [] , scanners = cmdScanners , mode = StreamMode }
             else
                 { watched = []
-                , scanners = [ initStdinScanner ]
+                , scanners = List.filterMap identity [ initStdinScanner ]
                 , mode = StreamMode
                 }
 
@@ -173,7 +189,7 @@ init : Page -> ( Model, Cmd.Cmd Msg )
 init _ =
     let
         rawArgs =
-            Platform.getArgs ()
+            Args.getArgs ()
                 |> List.drop 1
         _ =
             if List.any (\a -> a == "--help" || a == "-h") rawArgs then
@@ -330,22 +346,30 @@ levelClass level =
         Error ->
             "log-entry l-error"
 
+padRight : Int -> String -> String -> String
+padRight targetLen pad str =
+    if String.length str >= targetLen then
+        str
+    else
+        padRight targetLen pad (str ++ pad)
+
+
 formatTimestamp : Int -> String
 formatTimestamp ts =
     let
         secs =
             if ts > 9999999999 then
-                ts / 1000
+                ts // 1000
             else
                 ts
         totalSeconds =
-            secs - ((secs / 86400) * 86400)
+            secs - ((secs // 86400) * 86400)
         h =
-            totalSeconds / 3600
+            totalSeconds // 3600
         remainder =
             totalSeconds - (h * 3600)
         m =
-            remainder / 60
+            remainder // 60
         s =
             remainder - (m * 60)
     in
@@ -366,7 +390,7 @@ viewEntry entry =
             [ text
                 (
                 String.toUpper
-                    (String.padRight 5 " " (Entry.levelToString entry.level))
+                    (padRight 5 " " (Entry.levelToString entry.level))
                 )
             ]
         , span [ class "source" ] [ text entry.source ]
