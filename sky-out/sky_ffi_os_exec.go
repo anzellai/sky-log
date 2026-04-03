@@ -2,8 +2,10 @@ package main
 
 import (
 	_ffi_fmt "fmt"
+	"io"
 	exec "os/exec"
 	_ffi_reflect "reflect"
+	"time"
 )
 
 var _ = _ffi_fmt.Sprintf
@@ -750,4 +752,63 @@ func Sky_os_exec_FIELD_ExitError_Stderr(receiver any) any {
 		}
 	}
 	return nil
+}
+
+func Sky_os_exec_ErrDot() any {
+	return exec.ErrDot
+}
+
+func Sky_os_exec_ErrNotFound() any {
+	return exec.ErrNotFound
+}
+
+func Sky_os_exec_ErrWaitDelay() any {
+	return exec.ErrWaitDelay
+}
+
+func Sky_os_exec_CmdEnv(this any) any {
+	_this := this.(*exec.Cmd)
+
+	_val := _this.Env
+	_result := make([]any, len(_val))
+	for _i, _v := range _val {
+		_result[_i] = _v
+	}
+	return _result
+}
+
+func Sky_os_exec_CmdStdin(this any) io.Reader {
+	_this := this.(*exec.Cmd)
+
+	return _this.Stdin
+}
+
+func Sky_os_exec_CmdStdout(this any) io.Writer {
+	_this := this.(*exec.Cmd)
+
+	return _this.Stdout
+}
+
+func Sky_os_exec_CmdStderr(this any) io.Writer {
+	_this := this.(*exec.Cmd)
+
+	return _this.Stderr
+}
+
+func Sky_os_exec_ErrorErr(this any) error {
+	_this := this.(*exec.Error)
+
+	return _this.Err
+}
+
+func Sky_os_exec_ExitErrorSystemTime(this any) time.Duration {
+	_this := this.(*exec.ExitError)
+
+	return _this.SystemTime()
+}
+
+func Sky_os_exec_ExitErrorUserTime(this any) time.Duration {
+	_this := this.(*exec.ExitError)
+
+	return _this.UserTime()
 }

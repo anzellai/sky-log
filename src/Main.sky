@@ -20,7 +20,7 @@ import Std.Cmd as Cmd
 import Std.Sub as Sub
 import Std.Time as Time
 import Regexp
-import Log.Entry as Entry exposing (..)
+import Log.Entry as Entry exposing (LogEntry, Level, Debug, Info, Warn, ErrorLevel)
 import Log.Config as Config
 import Log.Webhook as Webhook
 
@@ -195,7 +195,7 @@ init _ =
             if List.any (\a -> a == "--help" || a == "-h") rawArgs then
                 let
                     _ =
-                        println "" helpText
+                        println helpText
                 in
                     Process.exit 0
             else
@@ -343,7 +343,7 @@ levelClass level =
         Warn ->
             "log-entry l-warn"
         
-        Error ->
+        ErrorLevel ->
             "log-entry l-error"
 
 padRight : Int -> String -> String -> String
@@ -406,7 +406,7 @@ viewEntries entries =
         div [ id "log-entries" ]
             (
             List.map viewEntry
-                (List.take 5000 (List.reverse (List.reverse entries)))
+                (List.take 5000 entries)
             )
 
 statusText : Model -> String

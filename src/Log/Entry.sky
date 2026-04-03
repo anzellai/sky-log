@@ -9,7 +9,7 @@ type Level
     = Debug
     | Info
     | Warn
-    | Error
+    | ErrorLevel
 
 type alias LogEntry =
     { timestamp : Int
@@ -32,7 +32,7 @@ levelFromString str =
             Warn
         
         "error" ->
-            Error
+            ErrorLevel
         
         _ ->
             Info
@@ -49,7 +49,7 @@ levelToString level =
         Warn ->
             "WARN"
         
-        Error ->
+        ErrorLevel ->
             "ERROR"
 
 levelToInt : Level -> Int
@@ -64,7 +64,7 @@ levelToInt level =
         Warn ->
             2
         
-        Error ->
+        ErrorLevel ->
             3
 
 levelDecoder : Decode.Decoder Level
