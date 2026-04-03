@@ -91,13 +91,74 @@ entryDecoder =
 decodeEntry : String -> String -> LogEntry
 decodeEntry line source =
     case Decode.decodeString entryDecoder line of
+
         Ok entry ->
             { entry | source = source }
-        
+
         Err _ ->
-            { timestamp = 0
-            , level = Info
-            , scope = "raw"
-            , message = line
-            , source = source
-            }
+            parseRawLine line source
+
+
+parseRawLine : String -> String -> LogEntry
+parseRawLine line source =
+    let
+        ts = extractTimestamp line
+        level = detectLevel line
+        scope =
+            if String.contains "|" line then
+                String.trim
+                    (
+                    case String.split "|" line of
+
+                        _ :: rest ->
+                            ""
+
+                        _ ->
+                            ""
+                    )
+            else
+                "raw"
+    in
+        { timestamp = ts
+        , level = level
+        , scope = source
+        , message = line
+        , source = source
+        }
+
+
+extractTimestamp : String -> Int
+extractTimestamp line =
+    let
+        prefix = String.slice 0 19 line
+        hasIsoDate =
+            String.length prefix >= 19
+                && String.contains "-" (String.slice 0 10 prefix)
+                && String.contains ":" (String.slice 11 19 prefix)
+    in
+        if hasIsoDate then
+            let
+                timePart = String.slice 11 19 prefix
+                parts = String.split ":" timePart
+                h = Maybe.withDefault 0 (String.toInt (Maybe.withDefault "0" (List.head parts)))
+                m = Maybe.withDefault 0 (String.toInt (Maybe.withDefault "0" (List.head (List.drop 1 parts))))
+                s = Maybe.withDefault 0 (String.toInt (Maybe.withDefault "0" (List.head (List.drop 2 parts))))
+            in
+                h * 3600 + m * 60 + s
+        else
+            0
+
+
+detectLevel : String -> Level
+detectLevel line =
+    let
+        lower = String.toLower line
+    in
+        if String.contains "error" lower || String.contains "err" lower then
+            ErrorLevel
+        else if String.contains "warn" lower then
+            Warn
+        else if String.contains "debug" lower then
+            Debug
+        else
+            Info

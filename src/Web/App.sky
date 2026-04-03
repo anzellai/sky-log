@@ -425,8 +425,7 @@ statusText model =
             in
                 "Streaming: " ++ String.join ", " labels
 
-styles : VNode
-styles =
+styles _ =
     styleNode []
         (
         stylesheet
@@ -679,7 +678,7 @@ view model =
                 "☾"
     in
         div [ class ("root " ++ model.theme) ]
-            [ styles
+            [ styles ()
             , div [ class "toolbar" ]
                 [ h1 [] [ text "sky" , span [] [ text "-log" ] ]
                 , button [ class "btn" , onClick ToggleTheme ]

@@ -665,6 +665,12 @@ var entryDecoder = Log_Entry_EntryDecoder()
 var EntryDecoder = Log_Entry_EntryDecoder()
 var decodeEntry = Log_Entry_DecodeEntry
 var DecodeEntry = Log_Entry_DecodeEntry
+var parseRawLine = Log_Entry_ParseRawLine
+var ParseRawLine = Log_Entry_ParseRawLine
+var extractTimestamp = Log_Entry_ExtractTimestamp
+var ExtractTimestamp = Log_Entry_ExtractTimestamp
+var detectLevel = Log_Entry_DetectLevel
+var DetectLevel = Log_Entry_DetectLevel
 var NoSection = Log_Config_NoSection
 var InSource = Log_Config_InSource
 var InWebhook = Log_Config_InWebhook
@@ -1191,6 +1197,14 @@ func sky_stringSplit(sep any) any {
 	}
 }
 
+func sky_stringToInt(s any) any {
+	n, err := strconv.Atoi(strings.TrimSpace(sky_asString(s)))
+	if err != nil {
+		return SkyNothing()
+	}
+	return SkyJust(n)
+}
+
 func sky_stringIsEmpty(v any) any { return sky_asString(v) == "" }
 
 func sky_stringSlice(start any) any {
@@ -1271,6 +1285,14 @@ func sky_listFoldl(fn any) any {
 }
 
 func sky_listLength(list any) any { return len(sky_asList(list)) }
+
+func sky_listHead(list any) any {
+	items := sky_asList(list)
+	if len(items) > 0 {
+		return SkyJust(items[0])
+	}
+	return SkyNothing()
+}
 
 func sky_listIsEmpty(list any) any { return len(sky_asList(list)) == 0 }
 
@@ -1472,6 +1494,16 @@ func sky_resultWithDefault(def any) any {
 		res := sky_asSkyResult(r)
 		if res.Tag == 0 {
 			return res.OkValue
+		}
+		return def
+	}
+}
+
+func sky_maybeWithDefault(def any) any {
+	return func(m any) any {
+		mb := sky_asSkyMaybe(m)
+		if mb.Tag == 0 {
+			return mb.JustValue
 		}
 		return def
 	}
@@ -1982,7 +2014,7 @@ func Log_Entry_EntryDecoder() any {
 	})))))
 }
 
-// sky:type decodeEntry : any -> any -> { timestamp : Int , level : Level , scope : String , message : t150 , source : t151 }
+// sky:type decodeEntry : any -> any -> any
 
 func Log_Entry_DecodeEntry(line any, source any) any {
 	return func() any {
@@ -1994,9 +2026,91 @@ func Log_Entry_DecodeEntry(line any, source any) any {
 				return sky_recordUpdate(entry, map[string]any{"source": source})
 			}
 			if sky_asSkyResult(__subject).SkyName == "Err" {
-				return map[string]any{"timestamp": 0, "level": SkyADT{Tag: 1, SkyName: "Info"}, "scope": "raw", "message": line, "source": source}
+				return Log_Entry_ParseRawLine(line, source)
 			}
 			panic("non-exhaustive case expression")
+		}()
+	}()
+}
+
+// sky:type parseRawLine : any -> any -> { level : t171 , scope : t168 , source : t168 , message : t167 , timestamp : t170 }
+
+func Log_Entry_ParseRawLine(line any, source any) any {
+	return func() any {
+		ts := Log_Entry_ExtractTimestamp(line)
+		_ = ts
+		level := Log_Entry_DetectLevel(line)
+		_ = level
+		scope := func() any {
+			if sky_asBool(sky_call(sky_stringContains("|"), line)) {
+				return sky_stringTrim(func() any {
+					return func() any {
+						__subject := sky_call(sky_stringSplit("|"), line)
+						if len(sky_asList(__subject)) > 0 {
+							rest := sky_asList(__subject)[1:]
+							_ = rest
+							return ""
+						}
+						if true {
+							return ""
+						}
+						panic("non-exhaustive case expression")
+					}()
+				}())
+			}
+			return "raw"
+		}()
+		_ = scope
+		return map[string]any{"timestamp": ts, "level": level, "scope": source, "message": line, "source": source}
+	}()
+}
+
+// sky:type extractTimestamp : any -> Int
+
+func Log_Entry_ExtractTimestamp(line any) any {
+	return func() any {
+		prefix := sky_call(sky_call(sky_stringSlice(0), 19), line)
+		_ = prefix
+		hasIsoDate := sky_asBool(sky_numCompare(">=", sky_stringLength(prefix), 19)) && sky_asBool(sky_asBool(sky_call(sky_stringContains("-"), sky_call(sky_call(sky_stringSlice(0), 10), prefix))) && sky_asBool(sky_call(sky_stringContains(":"), sky_call(sky_call(sky_stringSlice(11), 19), prefix))))
+		_ = hasIsoDate
+		return func() any {
+			if sky_asBool(hasIsoDate) {
+				return func() any {
+					timePart := sky_call(sky_call(sky_stringSlice(11), 19), prefix)
+					_ = timePart
+					parts := sky_call(sky_stringSplit(":"), timePart)
+					_ = parts
+					h := sky_call(sky_maybeWithDefault(0), sky_stringToInt(sky_call(sky_maybeWithDefault("0"), sky_listHead(parts))))
+					_ = h
+					m := sky_call(sky_maybeWithDefault(0), sky_stringToInt(sky_call(sky_maybeWithDefault("0"), sky_listHead(sky_call(sky_listDrop(1), parts)))))
+					_ = m
+					s := sky_call(sky_maybeWithDefault(0), sky_stringToInt(sky_call(sky_maybeWithDefault("0"), sky_listHead(sky_call(sky_listDrop(2), parts)))))
+					_ = s
+					return sky_numBinop("+", sky_numBinop("+", sky_numBinop("*", h, 3600), sky_numBinop("*", m, 60)), s)
+				}()
+			}
+			return 0
+		}()
+	}()
+}
+
+// sky:type detectLevel : any -> Level
+
+func Log_Entry_DetectLevel(line any) any {
+	return func() any {
+		lower := sky_stringToLower(line)
+		_ = lower
+		return func() any {
+			if sky_asBool(sky_asBool(sky_call(sky_stringContains("error"), lower)) || sky_asBool(sky_call(sky_stringContains("err"), lower))) {
+				return SkyADT{Tag: 3, SkyName: "ErrorLevel"}
+			}
+			if sky_asBool(sky_call(sky_stringContains("warn"), lower)) {
+				return SkyADT{Tag: 2, SkyName: "Warn"}
+			}
+			if sky_asBool(sky_call(sky_stringContains("debug"), lower)) {
+				return SkyADT{Tag: 0, SkyName: "Debug"}
+			}
+			return SkyADT{Tag: 1, SkyName: "Info"}
 		}()
 	}()
 }
@@ -2009,7 +2123,7 @@ func Log_Config_InWebhook(v0 any) any {
 	return SkyADT{Tag: 2, SkyName: "InWebhook", Fields: []any{v0}}
 }
 
-// sky:type emptySource : { name : String , command : String , filter : String , webhookUrl : String }
+// sky:type emptySource : { command : String , filter : String , webhookUrl : String , name : String }
 
 func Log_Config_EmptySource() any {
 	return map[string]any{"name": "", "command": "", "filter": "", "webhookUrl": ""}
@@ -2021,7 +2135,7 @@ func Log_Config_EmptyWebhook() any {
 	return map[string]any{"url": "", "filter": ""}
 }
 
-// sky:type parseConfig : any -> { webhook : { filter : String , url : String } , sources : List elem }
+// sky:type parseConfig : any -> { sources : List elem , webhook : { filter : String , url : String } }
 
 func Log_Config_ParseConfig(path any) any {
 	return func() any {
@@ -3085,7 +3199,7 @@ func readFileEntries(source any) any {
 	}()
 }
 
-// sky:type collectFileEntries : List any -> Dict any Int -> List any -> { counts : Dict t183 Int , newEntries : List elem , entries : List t175 }
+// sky:type collectFileEntries : List any -> Dict any Int -> List any -> { entries : List t175 , newEntries : List elem , counts : Dict t183 Int }
 
 func collectFileEntries(watched any, counts any, existing any) any {
 	return sky_call(sky_call(sky_listFoldl(func(source any) any {
@@ -3210,7 +3324,7 @@ func initCommandScanner(source any) any {
 	}()
 }
 
-// sky:type resolveMode : List any -> any -> { watched : List { path : t252 , label : t252 } , scanners : List elem , mode : SourceMode }
+// sky:type resolveMode : List any -> any -> { scanners : List elem , mode : SourceMode , watched : List { path : t252 , label : t252 } }
 
 func resolveMode(args any, sources any) any {
 	return func() any {
@@ -3230,7 +3344,7 @@ func resolveMode(args any, sources any) any {
 	}()
 }
 
-// sky:type init : any -> ( { searchFilter : String , scanners : List t323 , watched : List { path : String , label : String } , theme : String , entries : List t318 , scopeFilter : String , sourceFilter : String , webhookRules : List WebhookRule , fileCounts : Dict t327 Int , autoScroll : Bool , levelFilter : String , sourceMode : SourceMode } , any )
+// sky:type init : any -> ( { sourceFilter : String , theme : String , watched : List { label : String , path : String } , scopeFilter : String , scanners : List t323 , searchFilter : String , sourceMode : SourceMode , webhookRules : List WebhookRule , levelFilter : String , autoScroll : Bool , fileCounts : Dict t326 Int , entries : List t319 } , any )
 
 func init_(_ any) any {
 	return func() any {
@@ -3514,7 +3628,7 @@ func statusText(model any) any {
 // sky:type styles : any
 
 func styles() any {
-	return sky_call(sky_htmlStyleNode([]any{}), sky_cssStylesheet([]any{sky_call(sky_cssRule("*"), []any{sky_call(sky_cssPropFn("margin"), sky_call(sky_cssVal("0"), struct{}{})), sky_call(sky_cssPropFn("padding"), sky_call(sky_cssVal("0"), struct{}{})), sky_call(sky_cssProp("box-sizing"), "border-box")}), sky_call(sky_cssRule("html, body"), []any{sky_call(sky_cssPropFn("height"), sky_cssPct(100)), sky_call(sky_cssPropFn("overflow"), "hidden")}), sky_call(sky_cssRule(".root.dark"), []any{sky_call(sky_cssProp("--bg"), "#0a0e14"), sky_call(sky_cssProp("--fg"), "#c5cdd8"), sky_call(sky_cssProp("--muted"), "#64748b"), sky_call(sky_cssProp("--dimmed"), "#475569"), sky_call(sky_cssProp("--input-bg"), "#0a0e14"), sky_call(sky_cssProp("--input-border"), "rgba(255,255,255,0.12)"), sky_call(sky_cssProp("--border"), "rgba(255,255,255,0.06)"), sky_call(sky_cssProp("--hover"), "rgba(255,255,255,0.02)"), sky_call(sky_cssProp("--scroll-thumb"), "rgba(255,255,255,0.08)"), sky_call(sky_cssProp("--scroll-hover"), "rgba(255,255,255,0.15)"), sky_call(sky_cssProp("--btn-border"), "rgba(255,255,255,0.08)"), sky_call(sky_cssProp("--btn-hover-fg"), "#c5cdd8"), sky_call(sky_cssProp("--btn-hover-border"), "rgba(255,255,255,0.15)")}), sky_call(sky_cssRule(".root.light"), []any{sky_call(sky_cssProp("--bg"), "#ffffff"), sky_call(sky_cssProp("--fg"), "#1e293b"), sky_call(sky_cssProp("--muted"), "#94a3b8"), sky_call(sky_cssProp("--dimmed"), "#94a3b8"), sky_call(sky_cssProp("--input-bg"), "#f8fafc"), sky_call(sky_cssProp("--input-border"), "#d1d5db"), sky_call(sky_cssProp("--border"), "#e5e7eb"), sky_call(sky_cssProp("--hover"), "rgba(0,0,0,0.02)"), sky_call(sky_cssProp("--scroll-thumb"), "rgba(0,0,0,0.12)"), sky_call(sky_cssProp("--scroll-hover"), "rgba(0,0,0,0.2)"), sky_call(sky_cssProp("--btn-border"), "#d1d5db"), sky_call(sky_cssProp("--btn-hover-fg"), "#1e293b"), sky_call(sky_cssProp("--btn-hover-border"), "#9ca3af")}), sky_call(sky_cssRule("body"), []any{sky_call(sky_cssPropFn("background-color"), sky_cssHex("#0a0e14")), sky_call(sky_cssPropFn("color"), sky_cssHex("#c5cdd8")), sky_call(sky_cssPropFn("font-family"), "'SF Mono', 'JetBrains Mono', ui-monospace, Menlo, monospace"), sky_call(sky_cssPropFn("font-size"), sky_cssPx(11)), sky_call(sky_cssProp("-webkit-font-smoothing"), "antialiased")}), sky_call(sky_cssRule(".root"), []any{sky_call(sky_cssPropFn("position"), "fixed"), sky_call(sky_cssPropFn("top"), sky_call(sky_cssVal("0"), struct{}{})), sky_call(sky_cssProp("left"), "0"), sky_call(sky_cssProp("right"), "0"), sky_call(sky_cssPropFn("bottom"), sky_call(sky_cssVal("0"), struct{}{})), sky_call(sky_cssPropFn("display"), "flex"), sky_call(sky_cssPropFn("flex-direction"), "column"), sky_call(sky_cssPropFn("overflow"), "hidden"), sky_call(sky_cssPropFn("background-color"), "var(--bg, #0a0e14)"), sky_call(sky_cssPropFn("color"), "var(--fg, #c5cdd8)")}), sky_call(sky_cssRule(".toolbar"), []any{sky_call(sky_cssPropFn("display"), "flex"), sky_call(sky_cssPropFn("align-items"), "center"), sky_call(sky_cssPropFn("gap"), sky_cssPx(8)), sky_call(sky_cssPadding2(sky_cssPx(6)), sky_cssPx(12)), sky_call(sky_cssProp("border-bottom"), "1px solid var(--border)"), sky_call(sky_cssProp("flex-shrink"), "0")}), sky_call(sky_cssRule(".toolbar h1"), []any{sky_call(sky_cssPropFn("font-size"), sky_cssPx(11)), sky_call(sky_cssPropFn("font-weight"), "500"), sky_call(sky_cssPropFn("color"), "var(--muted)"), sky_call(sky_cssProp("margin-right"), "4px")}), sky_call(sky_cssRule(".toolbar h1 span"), []any{sky_call(sky_cssPropFn("color"), "var(--fg)"), sky_call(sky_cssPropFn("font-weight"), "600")}), sky_call(sky_cssRule(".toolbar select, .toolbar input"), []any{sky_call(sky_cssPropFn("background-color"), "var(--input-bg)"), sky_call(sky_cssPropFn("color"), "var(--fg)"), sky_call(sky_cssProp("border"), "1px solid var(--input-border)"), sky_call(sky_cssPropFn("border-radius"), sky_cssPx(4)), sky_call(sky_cssPadding2(sky_cssPx(3)), sky_cssPx(6)), sky_call(sky_cssPropFn("font-family"), "inherit"), sky_call(sky_cssPropFn("font-size"), sky_cssPx(11)), sky_call(sky_cssProp("outline"), "none"), sky_call(sky_cssPropFn("transition"), "border-color 0.15s")}), sky_call(sky_cssRule(".toolbar select:focus, .toolbar input:focus"), []any{sky_call(sky_cssPropFn("border-color"), sky_cssHex("#60a5fa"))}), sky_call(sky_cssRule(".toolbar input"), []any{sky_call(sky_cssPropFn("width"), sky_cssPx(120))}), sky_call(sky_cssRule(".spacer"), []any{sky_call(sky_cssVal("flex"), "1")}), sky_call(sky_cssRule(".stats"), []any{sky_call(sky_cssPropFn("color"), "var(--dimmed)"), sky_call(sky_cssPropFn("font-size"), sky_cssPx(11))}), sky_call(sky_cssRule(".btn"), []any{sky_call(sky_cssPropFn("background-color"), "transparent"), sky_call(sky_cssPropFn("color"), "var(--muted)"), sky_call(sky_cssProp("border"), "1px solid var(--btn-border)"), sky_call(sky_cssPropFn("border-radius"), sky_cssPx(4)), sky_call(sky_cssPadding2(sky_cssPx(3)), sky_cssPx(8)), sky_call(sky_cssPropFn("font-family"), "inherit"), sky_call(sky_cssPropFn("font-size"), sky_cssPx(11)), sky_call(sky_cssPropFn("cursor"), "pointer"), sky_call(sky_cssPropFn("transition"), "all 0.15s"), sky_call(sky_cssProp("user-select"), "none")}), sky_call(sky_cssRule(".btn:hover"), []any{sky_call(sky_cssPropFn("color"), "var(--btn-hover-fg)"), sky_call(sky_cssProp("border-color"), "var(--btn-hover-border)")}), sky_call(sky_cssRule(".btn.active"), []any{sky_call(sky_cssPropFn("color"), sky_cssHex("#60a5fa")), sky_call(sky_cssPropFn("border-color"), "rgba(96,165,250,0.3)")}), sky_call(sky_cssRule(".btn.danger:hover"), []any{sky_call(sky_cssPropFn("color"), sky_cssHex("#f87171")), sky_call(sky_cssPropFn("border-color"), "rgba(248,113,113,0.3)")}), sky_call(sky_cssRule("#log-entries"), []any{sky_call(sky_cssVal("flex"), "1"), sky_call(sky_cssProp("min-height"), "0"), sky_call(sky_cssProp("overflow-y"), "scroll")}), sky_call(sky_cssRule("#log-entries::-webkit-scrollbar"), []any{sky_call(sky_cssPropFn("width"), sky_cssPx(6))}), sky_call(sky_cssRule("#log-entries::-webkit-scrollbar-track"), []any{sky_call(sky_cssPropFn("background-color"), "transparent")}), sky_call(sky_cssRule("#log-entries::-webkit-scrollbar-thumb"), []any{sky_call(sky_cssProp("background-color"), "var(--scroll-thumb)"), sky_call(sky_cssPropFn("border-radius"), sky_cssPx(3))}), sky_call(sky_cssRule("#log-entries::-webkit-scrollbar-thumb:hover"), []any{sky_call(sky_cssProp("background-color"), "var(--scroll-hover)")}), sky_call(sky_cssRule(".log-entry"), []any{sky_call(sky_cssPropFn("display"), "flex"), sky_call(sky_cssPropFn("align-items"), "baseline"), sky_call(sky_cssPadding2(sky_cssPx(0)), sky_cssPx(12)), sky_call(sky_cssProp("line-height"), "18px"), sky_call(sky_cssPropFn("gap"), sky_cssPx(8)), sky_call(sky_cssPropFn("border-left"), "2px solid transparent")}), sky_call(sky_cssRule(".log-entry:hover"), []any{sky_call(sky_cssPropFn("background-color"), "var(--hover)")}), sky_call(sky_cssRule(".l-debug .level"), []any{sky_call(sky_cssPropFn("color"), sky_cssHex("#64748b"))}), sky_call(sky_cssRule(".l-info .level"), []any{sky_call(sky_cssPropFn("color"), sky_cssHex("#60a5fa"))}), sky_call(sky_cssRule(".l-warn .level"), []any{sky_call(sky_cssPropFn("color"), sky_cssHex("#fbbf24"))}), sky_call(sky_cssRule(".l-error .level"), []any{sky_call(sky_cssPropFn("color"), sky_cssHex("#f87171"))}), sky_call(sky_cssRule(".log-entry.l-error"), []any{sky_call(sky_cssPropFn("border-left"), "2px solid rgba(248,113,113,0.5)"), sky_call(sky_cssPropFn("background-color"), "rgba(248,113,113,0.03)")}), sky_call(sky_cssRule(".log-entry.l-warn"), []any{sky_call(sky_cssPropFn("border-left"), "2px solid rgba(251,191,36,0.4)"), sky_call(sky_cssPropFn("background-color"), "rgba(251,191,36,0.02)")}), sky_call(sky_cssRule(".ts"), []any{sky_call(sky_cssPropFn("color"), "var(--dimmed)"), sky_call(sky_cssProp("white-space"), "nowrap"), sky_call(sky_cssPropFn("min-width"), sky_cssPx(56)), sky_call(sky_cssProp("font-variant-numeric"), "tabular-nums")}), sky_call(sky_cssRule(".level"), []any{sky_call(sky_cssPropFn("font-weight"), "600"), sky_call(sky_cssProp("white-space"), "nowrap"), sky_call(sky_cssPropFn("min-width"), sky_cssPx(40)), sky_call(sky_cssPropFn("text-transform"), "uppercase"), sky_call(sky_cssPropFn("letter-spacing"), "0.3px")}), sky_call(sky_cssRule(".source"), []any{sky_call(sky_cssProp("white-space"), "nowrap"), sky_call(sky_cssPropFn("max-width"), sky_cssPx(100)), sky_call(sky_cssPropFn("overflow"), "hidden"), sky_call(sky_cssProp("text-overflow"), "ellipsis"), sky_call(sky_cssPropFn("color"), sky_cssHex("#a78bfa")), sky_call(sky_cssPropFn("background-color"), "rgba(167,139,250,0.08)"), sky_call(sky_cssPadding2(sky_cssPx(0)), sky_cssPx(4)), sky_call(sky_cssPropFn("border-radius"), sky_cssPx(3))}), sky_call(sky_cssRule(".scope"), []any{sky_call(sky_cssPropFn("color"), sky_cssHex("#34d399")), sky_call(sky_cssProp("white-space"), "nowrap"), sky_call(sky_cssPropFn("max-width"), sky_cssPx(120)), sky_call(sky_cssPropFn("overflow"), "hidden"), sky_call(sky_cssProp("text-overflow"), "ellipsis")}), sky_call(sky_cssRule(".msg"), []any{sky_call(sky_cssPropFn("color"), "var(--fg)"), sky_call(sky_cssProp("word-break"), "break-word"), sky_call(sky_cssVal("flex"), "1")}), sky_call(sky_cssRule(".empty"), []any{sky_call(sky_cssPropFn("display"), "flex"), sky_call(sky_cssPropFn("align-items"), "center"), sky_call(sky_cssPropFn("justify-content"), "center"), sky_call(sky_cssPropFn("height"), sky_cssPct(100)), sky_call(sky_cssPropFn("color"), "var(--dimmed)")}), sky_call(sky_cssRule(".status"), []any{sky_call(sky_cssPropFn("display"), "flex"), sky_call(sky_cssPropFn("align-items"), "center"), sky_call(sky_cssPropFn("gap"), sky_cssPx(6)), sky_call(sky_cssPadding2(sky_cssPx(4)), sky_cssPx(12)), sky_call(sky_cssProp("border-top"), "1px solid var(--border)"), sky_call(sky_cssPropFn("font-size"), sky_cssPx(10)), sky_call(sky_cssPropFn("color"), "var(--dimmed)"), sky_call(sky_cssProp("flex-shrink"), "0")}), sky_call(sky_cssRule(".dot"), []any{sky_call(sky_cssPropFn("width"), sky_cssPx(5)), sky_call(sky_cssPropFn("height"), sky_cssPx(5)), sky_call(sky_cssPropFn("border-radius"), sky_cssPct(50)), sky_call(sky_cssPropFn("background-color"), sky_cssHex("#34d399")), sky_call(sky_cssProp("box-shadow"), "0 0 4px rgba(52,211,153,0.4)")})}))
+	return sky_call(sky_htmlStyleNode([]any{}), sky_cssStylesheet([]any{sky_call(sky_cssRule("*"), []any{sky_call(sky_cssPropFn("margin"), sky_call(sky_cssVal("0"), struct{}{})), sky_call(sky_cssPropFn("padding"), sky_call(sky_cssVal("0"), struct{}{})), sky_call(sky_cssProp("box-sizing"), "border-box")}), sky_call(sky_cssRule("html, body"), []any{sky_call(sky_cssPropFn("height"), sky_cssPct(100)), sky_call(sky_cssPropFn("overflow"), "hidden")}), sky_call(sky_cssRule(".root.dark"), []any{sky_call(sky_cssProp("--bg"), "#0a0e14"), sky_call(sky_cssProp("--fg"), "#c5cdd8"), sky_call(sky_cssProp("--muted"), "#64748b"), sky_call(sky_cssProp("--dimmed"), "#475569"), sky_call(sky_cssProp("--input-bg"), "#0a0e14"), sky_call(sky_cssProp("--input-border"), "rgba(255,255,255,0.12)"), sky_call(sky_cssProp("--border"), "rgba(255,255,255,0.06)"), sky_call(sky_cssProp("--hover"), "rgba(255,255,255,0.02)"), sky_call(sky_cssProp("--scroll-thumb"), "rgba(255,255,255,0.08)"), sky_call(sky_cssProp("--scroll-hover"), "rgba(255,255,255,0.15)"), sky_call(sky_cssProp("--btn-border"), "rgba(255,255,255,0.08)"), sky_call(sky_cssProp("--btn-hover-fg"), "#c5cdd8"), sky_call(sky_cssProp("--btn-hover-border"), "rgba(255,255,255,0.15)")}), sky_call(sky_cssRule(".root.light"), []any{sky_call(sky_cssProp("--bg"), "#ffffff"), sky_call(sky_cssProp("--fg"), "#1e293b"), sky_call(sky_cssProp("--muted"), "#94a3b8"), sky_call(sky_cssProp("--dimmed"), "#94a3b8"), sky_call(sky_cssProp("--input-bg"), "#f8fafc"), sky_call(sky_cssProp("--input-border"), "#d1d5db"), sky_call(sky_cssProp("--border"), "#e5e7eb"), sky_call(sky_cssProp("--hover"), "rgba(0,0,0,0.02)"), sky_call(sky_cssProp("--scroll-thumb"), "rgba(0,0,0,0.12)"), sky_call(sky_cssProp("--scroll-hover"), "rgba(0,0,0,0.2)"), sky_call(sky_cssProp("--btn-border"), "#d1d5db"), sky_call(sky_cssProp("--btn-hover-fg"), "#1e293b"), sky_call(sky_cssProp("--btn-hover-border"), "#9ca3af")}), sky_call(sky_cssRule("body"), []any{sky_call(sky_cssPropFn("background-color"), sky_cssHex("#0a0e14")), sky_call(sky_cssPropFn("color"), sky_cssHex("#c5cdd8")), sky_call(sky_cssPropFn("font-family"), "'SF Mono', 'JetBrains Mono', ui-monospace, Menlo, monospace"), sky_call(sky_cssPropFn("font-size"), sky_cssPx(11)), sky_call(sky_cssProp("-webkit-font-smoothing"), "antialiased")}), sky_call(sky_cssRule(".root"), []any{sky_call(sky_cssPropFn("position"), "fixed"), sky_call(sky_cssPropFn("top"), sky_call(sky_cssVal("0"), struct{}{})), sky_call(sky_cssProp("left"), "0"), sky_call(sky_cssProp("right"), "0"), sky_call(sky_cssPropFn("bottom"), sky_call(sky_cssVal("0"), struct{}{})), sky_call(sky_cssPropFn("display"), "flex"), sky_call(sky_cssPropFn("flex-direction"), "column"), sky_call(sky_cssPropFn("overflow"), "hidden"), sky_call(sky_cssPropFn("background-color"), "var(--bg, #0a0e14)"), sky_call(sky_cssPropFn("color"), "var(--fg, #c5cdd8)")}), sky_call(sky_cssRule(".toolbar"), []any{sky_call(sky_cssPropFn("display"), "flex"), sky_call(sky_cssPropFn("align-items"), "center"), sky_call(sky_cssPropFn("gap"), sky_cssPx(8)), sky_call(sky_cssPadding2(sky_cssPx(6)), sky_cssPx(12)), sky_call(sky_cssProp("border-bottom"), "1px solid var(--border)"), sky_call(sky_cssProp("flex-shrink"), "0")}), sky_call(sky_cssRule(".toolbar h1"), []any{sky_call(sky_cssPropFn("font-size"), sky_cssPx(11)), sky_call(sky_cssPropFn("font-weight"), "500"), sky_call(sky_cssPropFn("color"), "var(--muted)"), sky_call(sky_cssProp("margin-right"), "4px")}), sky_call(sky_cssRule(".toolbar h1 span"), []any{sky_call(sky_cssPropFn("color"), "var(--fg)"), sky_call(sky_cssPropFn("font-weight"), "600")}), sky_call(sky_cssRule(".toolbar select, .toolbar input"), []any{sky_call(sky_cssPropFn("background-color"), "var(--input-bg)"), sky_call(sky_cssPropFn("color"), "var(--fg)"), sky_call(sky_cssProp("border"), "1px solid var(--input-border)"), sky_call(sky_cssPropFn("border-radius"), sky_cssPx(4)), sky_call(sky_cssPadding2(sky_cssPx(3)), sky_cssPx(6)), sky_call(sky_cssPropFn("font-family"), "inherit"), sky_call(sky_cssPropFn("font-size"), sky_cssPx(11)), sky_call(sky_cssProp("outline"), "none"), sky_call(sky_cssPropFn("transition"), "border-color 0.15s")}), sky_call(sky_cssRule(".toolbar select:focus, .toolbar input:focus"), []any{sky_call(sky_cssPropFn("border-color"), sky_cssHex("#60a5fa"))}), sky_call(sky_cssRule(".toolbar input"), []any{sky_call(sky_cssPropFn("width"), sky_cssPx(120))}), sky_call(sky_cssRule(".spacer"), []any{sky_call(sky_cssPropFn("flex"), "1")}), sky_call(sky_cssRule(".stats"), []any{sky_call(sky_cssPropFn("color"), "var(--dimmed)"), sky_call(sky_cssPropFn("font-size"), sky_cssPx(11))}), sky_call(sky_cssRule(".btn"), []any{sky_call(sky_cssPropFn("background-color"), "transparent"), sky_call(sky_cssPropFn("color"), "var(--muted)"), sky_call(sky_cssProp("border"), "1px solid var(--btn-border)"), sky_call(sky_cssPropFn("border-radius"), sky_cssPx(4)), sky_call(sky_cssPadding2(sky_cssPx(3)), sky_cssPx(8)), sky_call(sky_cssPropFn("font-family"), "inherit"), sky_call(sky_cssPropFn("font-size"), sky_cssPx(11)), sky_call(sky_cssPropFn("cursor"), "pointer"), sky_call(sky_cssPropFn("transition"), "all 0.15s"), sky_call(sky_cssProp("user-select"), "none")}), sky_call(sky_cssRule(".btn:hover"), []any{sky_call(sky_cssPropFn("color"), "var(--btn-hover-fg)"), sky_call(sky_cssProp("border-color"), "var(--btn-hover-border)")}), sky_call(sky_cssRule(".btn.active"), []any{sky_call(sky_cssPropFn("color"), sky_cssHex("#60a5fa")), sky_call(sky_cssPropFn("border-color"), "rgba(96,165,250,0.3)")}), sky_call(sky_cssRule(".btn.danger:hover"), []any{sky_call(sky_cssPropFn("color"), sky_cssHex("#f87171")), sky_call(sky_cssPropFn("border-color"), "rgba(248,113,113,0.3)")}), sky_call(sky_cssRule("#log-entries"), []any{sky_call(sky_cssPropFn("flex"), "1"), sky_call(sky_cssProp("min-height"), "0"), sky_call(sky_cssProp("overflow-y"), "scroll")}), sky_call(sky_cssRule("#log-entries::-webkit-scrollbar"), []any{sky_call(sky_cssPropFn("width"), sky_cssPx(6))}), sky_call(sky_cssRule("#log-entries::-webkit-scrollbar-track"), []any{sky_call(sky_cssPropFn("background-color"), "transparent")}), sky_call(sky_cssRule("#log-entries::-webkit-scrollbar-thumb"), []any{sky_call(sky_cssProp("background-color"), "var(--scroll-thumb)"), sky_call(sky_cssPropFn("border-radius"), sky_cssPx(3))}), sky_call(sky_cssRule("#log-entries::-webkit-scrollbar-thumb:hover"), []any{sky_call(sky_cssProp("background-color"), "var(--scroll-hover)")}), sky_call(sky_cssRule(".log-entry"), []any{sky_call(sky_cssPropFn("display"), "flex"), sky_call(sky_cssPropFn("align-items"), "baseline"), sky_call(sky_cssPadding2(sky_cssPx(0)), sky_cssPx(12)), sky_call(sky_cssProp("line-height"), "18px"), sky_call(sky_cssPropFn("gap"), sky_cssPx(8)), sky_call(sky_cssPropFn("border-left"), "2px solid transparent")}), sky_call(sky_cssRule(".log-entry:hover"), []any{sky_call(sky_cssPropFn("background-color"), "var(--hover)")}), sky_call(sky_cssRule(".l-debug .level"), []any{sky_call(sky_cssPropFn("color"), sky_cssHex("#64748b"))}), sky_call(sky_cssRule(".l-info .level"), []any{sky_call(sky_cssPropFn("color"), sky_cssHex("#60a5fa"))}), sky_call(sky_cssRule(".l-warn .level"), []any{sky_call(sky_cssPropFn("color"), sky_cssHex("#fbbf24"))}), sky_call(sky_cssRule(".l-error .level"), []any{sky_call(sky_cssPropFn("color"), sky_cssHex("#f87171"))}), sky_call(sky_cssRule(".log-entry.l-error"), []any{sky_call(sky_cssPropFn("border-left"), "2px solid rgba(248,113,113,0.5)"), sky_call(sky_cssPropFn("background-color"), "rgba(248,113,113,0.03)")}), sky_call(sky_cssRule(".log-entry.l-warn"), []any{sky_call(sky_cssPropFn("border-left"), "2px solid rgba(251,191,36,0.4)"), sky_call(sky_cssPropFn("background-color"), "rgba(251,191,36,0.02)")}), sky_call(sky_cssRule(".ts"), []any{sky_call(sky_cssPropFn("color"), "var(--dimmed)"), sky_call(sky_cssProp("white-space"), "nowrap"), sky_call(sky_cssPropFn("min-width"), sky_cssPx(56)), sky_call(sky_cssProp("font-variant-numeric"), "tabular-nums")}), sky_call(sky_cssRule(".level"), []any{sky_call(sky_cssPropFn("font-weight"), "600"), sky_call(sky_cssProp("white-space"), "nowrap"), sky_call(sky_cssPropFn("min-width"), sky_cssPx(40)), sky_call(sky_cssPropFn("text-transform"), "uppercase"), sky_call(sky_cssPropFn("letter-spacing"), "0.3px")}), sky_call(sky_cssRule(".source"), []any{sky_call(sky_cssProp("white-space"), "nowrap"), sky_call(sky_cssPropFn("max-width"), sky_cssPx(100)), sky_call(sky_cssPropFn("overflow"), "hidden"), sky_call(sky_cssProp("text-overflow"), "ellipsis"), sky_call(sky_cssPropFn("color"), sky_cssHex("#a78bfa")), sky_call(sky_cssPropFn("background-color"), "rgba(167,139,250,0.08)"), sky_call(sky_cssPadding2(sky_cssPx(0)), sky_cssPx(4)), sky_call(sky_cssPropFn("border-radius"), sky_cssPx(3))}), sky_call(sky_cssRule(".scope"), []any{sky_call(sky_cssPropFn("color"), sky_cssHex("#34d399")), sky_call(sky_cssProp("white-space"), "nowrap"), sky_call(sky_cssPropFn("max-width"), sky_cssPx(120)), sky_call(sky_cssPropFn("overflow"), "hidden"), sky_call(sky_cssProp("text-overflow"), "ellipsis")}), sky_call(sky_cssRule(".msg"), []any{sky_call(sky_cssPropFn("color"), "var(--fg)"), sky_call(sky_cssProp("word-break"), "break-word"), sky_call(sky_cssPropFn("flex"), "1")}), sky_call(sky_cssRule(".empty"), []any{sky_call(sky_cssPropFn("display"), "flex"), sky_call(sky_cssPropFn("align-items"), "center"), sky_call(sky_cssPropFn("justify-content"), "center"), sky_call(sky_cssPropFn("height"), sky_cssPct(100)), sky_call(sky_cssPropFn("color"), "var(--dimmed)")}), sky_call(sky_cssRule(".status"), []any{sky_call(sky_cssPropFn("display"), "flex"), sky_call(sky_cssPropFn("align-items"), "center"), sky_call(sky_cssPropFn("gap"), sky_cssPx(6)), sky_call(sky_cssPadding2(sky_cssPx(4)), sky_cssPx(12)), sky_call(sky_cssProp("border-top"), "1px solid var(--border)"), sky_call(sky_cssPropFn("font-size"), sky_cssPx(10)), sky_call(sky_cssPropFn("color"), "var(--dimmed)"), sky_call(sky_cssProp("flex-shrink"), "0")}), sky_call(sky_cssRule(".dot"), []any{sky_call(sky_cssPropFn("width"), sky_cssPx(5)), sky_call(sky_cssPropFn("height"), sky_cssPx(5)), sky_call(sky_cssPropFn("border-radius"), sky_cssPct(50)), sky_call(sky_cssPropFn("background-color"), sky_cssHex("#34d399")), sky_call(sky_cssProp("box-shadow"), "0 0 4px rgba(52,211,153,0.4)")})}))
 }
 
 // sky:type uniqueSources : List any -> List String
