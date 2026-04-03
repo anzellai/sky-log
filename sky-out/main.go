@@ -2033,7 +2033,7 @@ func Log_Entry_DecodeEntry(line any, source any) any {
 	}()
 }
 
-// sky:type parseRawLine : any -> any -> { message : t167 , source : t168 , timestamp : t170 , level : t171 , scope : t168 }
+// sky:type parseRawLine : any -> any -> { message : t167 , level : t171 , scope : t168 , source : t168 , timestamp : t170 }
 
 func Log_Entry_ParseRawLine(line any, source any) any {
 	return func() any {
@@ -2123,7 +2123,7 @@ func Log_Config_InWebhook(v0 any) any {
 	return SkyADT{Tag: 2, SkyName: "InWebhook", Fields: []any{v0}}
 }
 
-// sky:type emptySource : { webhookUrl : String , filter : String , name : String , command : String }
+// sky:type emptySource : { webhookUrl : String , name : String , command : String , filter : String }
 
 func Log_Config_EmptySource() any {
 	return map[string]any{"name": "", "command": "", "filter": "", "webhookUrl": ""}
@@ -2135,7 +2135,7 @@ func Log_Config_EmptyWebhook() any {
 	return map[string]any{"url": "", "filter": ""}
 }
 
-// sky:type parseConfig : any -> { sources : List elem , webhook : { url : String , filter : String } }
+// sky:type parseConfig : any -> { webhook : { filter : String , url : String } , sources : List elem }
 
 func Log_Config_ParseConfig(path any) any {
 	return func() any {
@@ -3324,7 +3324,7 @@ func initCommandScanner(source any) any {
 	}()
 }
 
-// sky:type resolveMode : List any -> any -> { watched : List { path : t252 , label : t252 } , scanners : List elem , mode : SourceMode }
+// sky:type resolveMode : List any -> any -> { scanners : List elem , mode : SourceMode , watched : List { label : t252 , path : t252 } }
 
 func resolveMode(args any, sources any) any {
 	return func() any {
@@ -3344,7 +3344,7 @@ func resolveMode(args any, sources any) any {
 	}()
 }
 
-// sky:type init : any -> ( { theme : String , autoScroll : Bool , scopeFilter : String , watched : List { path : String , label : String } , webhookRules : List WebhookRule , levelFilter : String , searchFilter : String , entries : List t317 , sourceMode : SourceMode , sourceFilter : String , fileCounts : Dict t326 Int , scanners : List t323 } , any )
+// sky:type init : any -> ( { theme : String , entries : List t319 , scanners : List t323 , levelFilter : String , scopeFilter : String , sourceMode : SourceMode , sourceFilter : String , autoScroll : Bool , watched : List { label : String , path : String } , webhookRules : List WebhookRule , fileCounts : Dict t325 Int , searchFilter : String } , any )
 
 func init_(_ any) any {
 	return func() any {
@@ -3681,7 +3681,7 @@ func view(model any) any {
 			return "☾"
 		}()
 		_ = themeIcon
-		return sky_call(sky_call(sky_htmlEl("div"), []any{sky_call(sky_attrSimple("class"), sky_concat("root ", sky_asMap(model)["theme"]))}), []any{sky_cssStyles, sky_call(sky_call(sky_htmlEl("div"), []any{sky_call(sky_attrSimple("class"), "toolbar")}), []any{sky_call(sky_call(sky_htmlEl("h1"), []any{}), []any{sky_htmlText("sky"), sky_call(sky_call(sky_htmlEl("span"), []any{}), []any{sky_htmlText("-log")})}), sky_call(sky_call(sky_htmlEl("button"), []any{sky_call(sky_attrSimple("class"), "btn"), sky_call(sky_evtHandler("click"), SkyADT{Tag: 6, SkyName: "ToggleTheme"})}), []any{sky_htmlText(themeIcon)}), sky_call(sky_call(sky_htmlEl("select"), []any{sky_call(sky_attrSimple("id"), "level-filter"), sky_call(sky_evtHandler("change"), SetLevelFilter)}), []any{sky_call(sky_call(sky_htmlEl("option"), []any{sky_call(sky_attrSimple("value"), "")}), []any{sky_htmlText("Level")}), sky_call(sky_call(sky_htmlEl("option"), []any{sky_call(sky_attrSimple("value"), "debug")}), []any{sky_htmlText("DEBUG")}), sky_call(sky_call(sky_htmlEl("option"), []any{sky_call(sky_attrSimple("value"), "info")}), []any{sky_htmlText("INFO")}), sky_call(sky_call(sky_htmlEl("option"), []any{sky_call(sky_attrSimple("value"), "warn")}), []any{sky_htmlText("WARN")}), sky_call(sky_call(sky_htmlEl("option"), []any{sky_call(sky_attrSimple("value"), "error")}), []any{sky_htmlText("ERROR")})}), sky_call(sky_htmlVoid("input"), []any{sky_call(sky_attrSimple("id"), "scope-filter"), sky_call(sky_attrSimple("type"), "text"), sky_call(sky_attrSimple("placeholder"), "scope"), sky_call(sky_evtHandler("input"), SetScopeFilter)}), sky_call(sky_htmlVoid("input"), []any{sky_call(sky_attrSimple("id"), "search-filter"), sky_call(sky_attrSimple("type"), "text"), sky_call(sky_attrSimple("placeholder"), "regex search"), sky_call(sky_evtHandler("input"), SetSearchFilter)}), sky_call(sky_call(sky_htmlEl("select"), []any{sky_call(sky_attrSimple("id"), "source-filter"), sky_call(sky_evtHandler("change"), SetSourceFilter)}), sky_call(sky_listAppend([]any{sky_call(sky_call(sky_htmlEl("option"), []any{sky_call(sky_attrSimple("value"), "")}), []any{sky_htmlText("Source")})}), sky_call(sky_listMap(func(s any) any {
+		return sky_call(sky_call(sky_htmlEl("div"), []any{sky_call(sky_attrSimple("class"), sky_concat("root ", sky_asMap(model)["theme"]))}), []any{styles(), sky_call(sky_call(sky_htmlEl("div"), []any{sky_call(sky_attrSimple("class"), "toolbar")}), []any{sky_call(sky_call(sky_htmlEl("h1"), []any{}), []any{sky_htmlText("sky"), sky_call(sky_call(sky_htmlEl("span"), []any{}), []any{sky_htmlText("-log")})}), sky_call(sky_call(sky_htmlEl("button"), []any{sky_call(sky_attrSimple("class"), "btn"), sky_call(sky_evtHandler("click"), SkyADT{Tag: 6, SkyName: "ToggleTheme"})}), []any{sky_htmlText(themeIcon)}), sky_call(sky_call(sky_htmlEl("select"), []any{sky_call(sky_attrSimple("id"), "level-filter"), sky_call(sky_evtHandler("change"), SetLevelFilter)}), []any{sky_call(sky_call(sky_htmlEl("option"), []any{sky_call(sky_attrSimple("value"), "")}), []any{sky_htmlText("Level")}), sky_call(sky_call(sky_htmlEl("option"), []any{sky_call(sky_attrSimple("value"), "debug")}), []any{sky_htmlText("DEBUG")}), sky_call(sky_call(sky_htmlEl("option"), []any{sky_call(sky_attrSimple("value"), "info")}), []any{sky_htmlText("INFO")}), sky_call(sky_call(sky_htmlEl("option"), []any{sky_call(sky_attrSimple("value"), "warn")}), []any{sky_htmlText("WARN")}), sky_call(sky_call(sky_htmlEl("option"), []any{sky_call(sky_attrSimple("value"), "error")}), []any{sky_htmlText("ERROR")})}), sky_call(sky_htmlVoid("input"), []any{sky_call(sky_attrSimple("id"), "scope-filter"), sky_call(sky_attrSimple("type"), "text"), sky_call(sky_attrSimple("placeholder"), "scope"), sky_call(sky_evtHandler("input"), SetScopeFilter)}), sky_call(sky_htmlVoid("input"), []any{sky_call(sky_attrSimple("id"), "search-filter"), sky_call(sky_attrSimple("type"), "text"), sky_call(sky_attrSimple("placeholder"), "regex search"), sky_call(sky_evtHandler("input"), SetSearchFilter)}), sky_call(sky_call(sky_htmlEl("select"), []any{sky_call(sky_attrSimple("id"), "source-filter"), sky_call(sky_evtHandler("change"), SetSourceFilter)}), sky_call(sky_listAppend([]any{sky_call(sky_call(sky_htmlEl("option"), []any{sky_call(sky_attrSimple("value"), "")}), []any{sky_htmlText("Source")})}), sky_call(sky_listMap(func(s any) any {
 			return sky_call(sky_call(sky_htmlEl("option"), []any{sky_call(sky_attrSimple("value"), s)}), []any{sky_htmlText(s)})
 		}), sources))), sky_call(sky_call(sky_htmlEl("div"), []any{sky_call(sky_attrSimple("class"), "spacer")}), []any{}), sky_call(sky_call(sky_htmlEl("button"), []any{sky_call(sky_attrSimple("class"), scrollClass), sky_call(sky_evtHandler("click"), SkyADT{Tag: 5, SkyName: "ToggleAutoScroll"})}), []any{sky_htmlText(scrollLabel)}), sky_call(sky_call(sky_htmlEl("button"), []any{sky_call(sky_attrSimple("class"), "btn danger"), sky_call(sky_evtHandler("click"), SkyADT{Tag: 7, SkyName: "ClearLogs"})}), []any{sky_htmlText("Clear")})}), viewEntries(filtered), sky_call(sky_call(sky_htmlEl("div"), []any{sky_call(sky_attrSimple("class"), "status")}), []any{sky_call(sky_call(sky_htmlEl("span"), []any{sky_call(sky_attrSimple("class"), "dot")}), []any{}), sky_htmlText(statusText(model)), sky_call(sky_call(sky_htmlEl("div"), []any{sky_call(sky_attrSimple("class"), "spacer")}), []any{}), sky_call(sky_call(sky_htmlEl("span"), []any{sky_call(sky_attrSimple("class"), "stats")}), []any{sky_htmlText(sky_concat(sky_stringFromInt(filteredCount), sky_concat("/", sky_stringFromInt(totalCount))))})})})
 	}()

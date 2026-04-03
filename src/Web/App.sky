@@ -425,7 +425,8 @@ statusText model =
             in
                 "Streaming: " ++ String.join ", " labels
 
-getAppCss x =
+styles =
+    styleNode []
         (
         stylesheet
             [ rule "*"
@@ -646,7 +647,7 @@ uniqueSources entries =
 view : Model -> VNode
 view model =
     let
-        appStylesheet = "<style>body{margin:0;font-family:monospace;background:#0a0e14;color:#c5cdd8}</style>"
+        testCss = "<style>body{color:red}</style>"
         filtered =
             model.entries
                 |> List.filter
@@ -678,7 +679,7 @@ view model =
                 "☾"
     in
         div [ class ("root " ++ model.theme) ]
-            [ raw appStylesheet
+            [ styles
             , div [ class "toolbar" ]
                 [ h1 [] [ text "sky" , span [] [ text "-log" ] ]
                 , button [ class "btn" , onClick ToggleTheme ]
