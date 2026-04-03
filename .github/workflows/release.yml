@@ -48,16 +48,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install goimports
+        run: go install golang.org/x/tools/cmd/goimports@latest
+
       - name: Install dependencies
         run: sky install
 
-      - name: Compile Sky to Go
-        run: sky build
+      - name: Build
+        run: sky build src/Main.sky
 
       - name: Cross-compile Go binary
         run: |
-          cd dist
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o ../${{ matrix.artifact }} .
+          cd sky-out
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -gcflags="all=-l" -ldflags="-s -w" -o ../${{ matrix.artifact }} .
         env:
           CGO_ENABLED: 0
 
