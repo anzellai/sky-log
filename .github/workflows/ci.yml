@@ -29,7 +29,9 @@ jobs:
         run: sky install
 
       - name: Build
-        run: sky build
+        run: sky build src/Main.sky
 
       - name: Verify binary
-        run: test -x ./dist/app && file ./dist/app
+        run: |
+          test -x ./sky-out/app && file ./sky-out/app
+          ./sky-out/app --help | head -3
