@@ -447,40 +447,6 @@ var commandContext = Os_Exec_CommandContext
 var CommandContext = Os_Exec_CommandContext
 var lookPath = Os_Exec_LookPath
 var LookPath = Os_Exec_LookPath
-var cmdPath = Os_Exec_CmdPath
-var CmdPath = Os_Exec_CmdPath
-var cmdArgs = Os_Exec_CmdArgs
-var CmdArgs = Os_Exec_CmdArgs
-var cmdEnv = Os_Exec_CmdEnv
-var CmdEnv = Os_Exec_CmdEnv
-var cmdDir = Os_Exec_CmdDir
-var CmdDir = Os_Exec_CmdDir
-var cmdStdin = Os_Exec_CmdStdin
-var CmdStdin = Os_Exec_CmdStdin
-var cmdStdout = Os_Exec_CmdStdout
-var CmdStdout = Os_Exec_CmdStdout
-var cmdStderr = Os_Exec_CmdStderr
-var CmdStderr = Os_Exec_CmdStderr
-var cmdExtraFiles = Os_Exec_CmdExtraFiles
-var CmdExtraFiles = Os_Exec_CmdExtraFiles
-var cmdSysProcAttr = Os_Exec_CmdSysProcAttr
-var CmdSysProcAttr = Os_Exec_CmdSysProcAttr
-var cmdProcess = Os_Exec_CmdProcess
-var CmdProcess = Os_Exec_CmdProcess
-var cmdProcessState = Os_Exec_CmdProcessState
-var CmdProcessState = Os_Exec_CmdProcessState
-var cmdErr = Os_Exec_CmdErr
-var CmdErr = Os_Exec_CmdErr
-var cmdWaitDelay = Os_Exec_CmdWaitDelay
-var CmdWaitDelay = Os_Exec_CmdWaitDelay
-var errorName = Os_Exec_ErrorName
-var ErrorName = Os_Exec_ErrorName
-var errorErr = Os_Exec_ErrorErr
-var ErrorErr = Os_Exec_ErrorErr
-var exitErrorProcessState = Os_Exec_ExitErrorProcessState
-var ExitErrorProcessState = Os_Exec_ExitErrorProcessState
-var exitErrorStderr = Os_Exec_ExitErrorStderr
-var ExitErrorStderr = Os_Exec_ExitErrorStderr
 var cmdCombinedOutput = Os_Exec_CmdCombinedOutput
 var CmdCombinedOutput = Os_Exec_CmdCombinedOutput
 var cmdEnviron = Os_Exec_CmdEnviron
@@ -521,12 +487,88 @@ var exitErrorSys = Os_Exec_ExitErrorSys
 var ExitErrorSys = Os_Exec_ExitErrorSys
 var exitErrorSysUsage = Os_Exec_ExitErrorSysUsage
 var ExitErrorSysUsage = Os_Exec_ExitErrorSysUsage
+var newCmd = Os_Exec_NewCmd
+var NewCmd = Os_Exec_NewCmd
+var cmdPath = Os_Exec_CmdPath
+var CmdPath = Os_Exec_CmdPath
+var cmdSetPath = Os_Exec_CmdSetPath
+var CmdSetPath = Os_Exec_CmdSetPath
+var cmdArgs = Os_Exec_CmdArgs
+var CmdArgs = Os_Exec_CmdArgs
+var cmdSetArgs = Os_Exec_CmdSetArgs
+var CmdSetArgs = Os_Exec_CmdSetArgs
+var cmdEnv = Os_Exec_CmdEnv
+var CmdEnv = Os_Exec_CmdEnv
+var cmdSetEnv = Os_Exec_CmdSetEnv
+var CmdSetEnv = Os_Exec_CmdSetEnv
+var cmdDir = Os_Exec_CmdDir
+var CmdDir = Os_Exec_CmdDir
+var cmdSetDir = Os_Exec_CmdSetDir
+var CmdSetDir = Os_Exec_CmdSetDir
+var cmdStdin = Os_Exec_CmdStdin
+var CmdStdin = Os_Exec_CmdStdin
+var cmdSetStdin = Os_Exec_CmdSetStdin
+var CmdSetStdin = Os_Exec_CmdSetStdin
+var cmdStdout = Os_Exec_CmdStdout
+var CmdStdout = Os_Exec_CmdStdout
+var cmdSetStdout = Os_Exec_CmdSetStdout
+var CmdSetStdout = Os_Exec_CmdSetStdout
+var cmdStderr = Os_Exec_CmdStderr
+var CmdStderr = Os_Exec_CmdStderr
+var cmdSetStderr = Os_Exec_CmdSetStderr
+var CmdSetStderr = Os_Exec_CmdSetStderr
+var cmdExtraFiles = Os_Exec_CmdExtraFiles
+var CmdExtraFiles = Os_Exec_CmdExtraFiles
+var cmdSetExtraFiles = Os_Exec_CmdSetExtraFiles
+var CmdSetExtraFiles = Os_Exec_CmdSetExtraFiles
+var cmdSysProcAttr = Os_Exec_CmdSysProcAttr
+var CmdSysProcAttr = Os_Exec_CmdSysProcAttr
+var cmdSetSysProcAttr = Os_Exec_CmdSetSysProcAttr
+var CmdSetSysProcAttr = Os_Exec_CmdSetSysProcAttr
+var cmdProcess = Os_Exec_CmdProcess
+var CmdProcess = Os_Exec_CmdProcess
+var cmdSetProcess = Os_Exec_CmdSetProcess
+var CmdSetProcess = Os_Exec_CmdSetProcess
+var cmdProcessState = Os_Exec_CmdProcessState
+var CmdProcessState = Os_Exec_CmdProcessState
+var cmdSetProcessState = Os_Exec_CmdSetProcessState
+var CmdSetProcessState = Os_Exec_CmdSetProcessState
+var cmdErr = Os_Exec_CmdErr
+var CmdErr = Os_Exec_CmdErr
+var cmdSetErr = Os_Exec_CmdSetErr
+var CmdSetErr = Os_Exec_CmdSetErr
+var cmdWaitDelay = Os_Exec_CmdWaitDelay
+var CmdWaitDelay = Os_Exec_CmdWaitDelay
+var cmdSetWaitDelay = Os_Exec_CmdSetWaitDelay
+var CmdSetWaitDelay = Os_Exec_CmdSetWaitDelay
+var newError = Os_Exec_NewError
+var NewError = Os_Exec_NewError
+var errorName = Os_Exec_ErrorName
+var ErrorName = Os_Exec_ErrorName
+var errorSetName = Os_Exec_ErrorSetName
+var ErrorSetName = Os_Exec_ErrorSetName
+var errorErr = Os_Exec_ErrorErr
+var ErrorErr = Os_Exec_ErrorErr
+var errorSetErr = Os_Exec_ErrorSetErr
+var ErrorSetErr = Os_Exec_ErrorSetErr
+var newExitError = Os_Exec_NewExitError
+var NewExitError = Os_Exec_NewExitError
+var exitErrorProcessState = Os_Exec_ExitErrorProcessState
+var ExitErrorProcessState = Os_Exec_ExitErrorProcessState
+var exitErrorSetProcessState = Os_Exec_ExitErrorSetProcessState
+var ExitErrorSetProcessState = Os_Exec_ExitErrorSetProcessState
+var exitErrorStderr = Os_Exec_ExitErrorStderr
+var ExitErrorStderr = Os_Exec_ExitErrorStderr
+var exitErrorSetStderr = Os_Exec_ExitErrorSetStderr
+var ExitErrorSetStderr = Os_Exec_ExitErrorSetStderr
 var errDot = Os_Exec_ErrDot()
 var ErrDot = Os_Exec_ErrDot()
 var errNotFound = Os_Exec_ErrNotFound()
 var ErrNotFound = Os_Exec_ErrNotFound()
 var errWaitDelay = Os_Exec_ErrWaitDelay()
 var ErrWaitDelay = Os_Exec_ErrWaitDelay()
+var cmdCancel = Os_Exec_CmdCancel
+var CmdCancel = Os_Exec_CmdCancel
 var exitErrorSystemTime = Os_Exec_ExitErrorSystemTime
 var ExitErrorSystemTime = Os_Exec_ExitErrorSystemTime
 var exitErrorUserTime = Os_Exec_ExitErrorUserTime
@@ -549,14 +591,32 @@ var regexpAppendText = Regexp_RegexpAppendText
 var RegexpAppendText = Regexp_RegexpAppendText
 var regexpCopy = Regexp_RegexpCopy
 var RegexpCopy = Regexp_RegexpCopy
+var regexpExpand = Regexp_RegexpExpand
+var RegexpExpand = Regexp_RegexpExpand
+var regexpExpandString = Regexp_RegexpExpandString
+var RegexpExpandString = Regexp_RegexpExpandString
 var regexpFind = Regexp_RegexpFind
 var RegexpFind = Regexp_RegexpFind
+var regexpFindAll = Regexp_RegexpFindAll
+var RegexpFindAll = Regexp_RegexpFindAll
 var regexpFindAllString = Regexp_RegexpFindAllString
 var RegexpFindAllString = Regexp_RegexpFindAllString
+var regexpFindAllSubmatch = Regexp_RegexpFindAllSubmatch
+var RegexpFindAllSubmatch = Regexp_RegexpFindAllSubmatch
+var regexpFindIndex = Regexp_RegexpFindIndex
+var RegexpFindIndex = Regexp_RegexpFindIndex
 var regexpFindString = Regexp_RegexpFindString
 var RegexpFindString = Regexp_RegexpFindString
+var regexpFindStringIndex = Regexp_RegexpFindStringIndex
+var RegexpFindStringIndex = Regexp_RegexpFindStringIndex
 var regexpFindStringSubmatch = Regexp_RegexpFindStringSubmatch
 var RegexpFindStringSubmatch = Regexp_RegexpFindStringSubmatch
+var regexpFindStringSubmatchIndex = Regexp_RegexpFindStringSubmatchIndex
+var RegexpFindStringSubmatchIndex = Regexp_RegexpFindStringSubmatchIndex
+var regexpFindSubmatch = Regexp_RegexpFindSubmatch
+var RegexpFindSubmatch = Regexp_RegexpFindSubmatch
+var regexpFindSubmatchIndex = Regexp_RegexpFindSubmatchIndex
+var RegexpFindSubmatchIndex = Regexp_RegexpFindSubmatchIndex
 var regexpLiteralPrefix = Regexp_RegexpLiteralPrefix
 var RegexpLiteralPrefix = Regexp_RegexpLiteralPrefix
 var regexpLongest = Regexp_RegexpLongest
@@ -587,6 +647,8 @@ var regexpSubexpNames = Regexp_RegexpSubexpNames
 var RegexpSubexpNames = Regexp_RegexpSubexpNames
 var regexpUnmarshalText = Regexp_RegexpUnmarshalText
 var RegexpUnmarshalText = Regexp_RegexpUnmarshalText
+var newRegexp = Regexp_NewRegexp
+var NewRegexp = Regexp_NewRegexp
 var Debug = Log_Entry_Debug
 var Info = Log_Entry_Info
 var Warn = Log_Entry_Warn
@@ -1025,10 +1087,6 @@ func sky_callZeroOrNil(f any) any {
 	}
 	return f
 }
-
-func sky_asUint(v any) uint { return uint(sky_asInt(v)) }
-
-func sky_asUint8(v any) uint8 { return uint8(sky_asInt(v)) }
 
 func sky_asMap(v any) map[string]any {
 	if m, ok := v.(map[string]any); ok {
@@ -1924,7 +1982,7 @@ func Log_Entry_EntryDecoder() any {
 	})))))
 }
 
-// sky:type decodeEntry : any -> any -> { level : Level , timestamp : Int , scope : String , message : t150 , source : t151 }
+// sky:type decodeEntry : any -> any -> { timestamp : Int , level : Level , scope : String , message : t150 , source : t151 }
 
 func Log_Entry_DecodeEntry(line any, source any) any {
 	return func() any {
@@ -1957,13 +2015,13 @@ func Log_Config_EmptySource() any {
 	return map[string]any{"name": "", "command": "", "filter": "", "webhookUrl": ""}
 }
 
-// sky:type emptyWebhook : { url : String , filter : String }
+// sky:type emptyWebhook : { filter : String , url : String }
 
 func Log_Config_EmptyWebhook() any {
 	return map[string]any{"url": "", "filter": ""}
 }
 
-// sky:type parseConfig : any -> { sources : List elem , webhook : { url : String , filter : String } }
+// sky:type parseConfig : any -> { webhook : { filter : String , url : String } , sources : List elem }
 
 func Log_Config_ParseConfig(path any) any {
 	return func() any {
@@ -2562,40 +2620,6 @@ func Os_Exec_CommandContext(a0 any, a1 any, a2 any) any {
 
 func Os_Exec_LookPath(a0 any) any { return Sky_os_exec_LookPath(a0) }
 
-func Os_Exec_CmdPath(a0 any) any { return Sky_os_exec_FIELD_Cmd_Path(a0) }
-
-func Os_Exec_CmdArgs(a0 any) any { return Sky_os_exec_FIELD_Cmd_Args(a0) }
-
-func Os_Exec_CmdEnv(a0 any) any { return Sky_os_exec_FIELD_Cmd_Env(a0) }
-
-func Os_Exec_CmdDir(a0 any) any { return Sky_os_exec_FIELD_Cmd_Dir(a0) }
-
-func Os_Exec_CmdStdin(a0 any) any { return Sky_os_exec_FIELD_Cmd_Stdin(a0) }
-
-func Os_Exec_CmdStdout(a0 any) any { return Sky_os_exec_FIELD_Cmd_Stdout(a0) }
-
-func Os_Exec_CmdStderr(a0 any) any { return Sky_os_exec_FIELD_Cmd_Stderr(a0) }
-
-func Os_Exec_CmdExtraFiles(a0 any) any { return Sky_os_exec_FIELD_Cmd_ExtraFiles(a0) }
-
-func Os_Exec_CmdSysProcAttr(a0 any) any { return Sky_os_exec_FIELD_Cmd_SysProcAttr(a0) }
-
-func Os_Exec_CmdProcess(a0 any) any { return Sky_os_exec_FIELD_Cmd_Process(a0) }
-
-func Os_Exec_CmdProcessState(a0 any) any { return Sky_os_exec_FIELD_Cmd_ProcessState(a0) }
-
-func Os_Exec_CmdErr(a0 any) any { return Sky_os_exec_FIELD_Cmd_Err(a0) }
-
-func Os_Exec_CmdWaitDelay(a0 any) any { return Sky_os_exec_FIELD_Cmd_WaitDelay(a0) }
-
-func Os_Exec_ErrorName(a0 any) any { return Sky_os_exec_FIELD_Error_Name(a0) }
-
-func Os_Exec_ErrorErr(a0 any) any { return Sky_os_exec_FIELD_Error_Err(a0) }
-
-func Os_Exec_ExitErrorProcessState(a0 any) any { return Sky_os_exec_FIELD_ExitError_ProcessState(a0) }
-
-func Os_Exec_ExitErrorStderr(a0 any) any { return Sky_os_exec_FIELD_ExitError_Stderr(a0) }
-
 func Os_Exec_CmdCombinedOutput(a0 any) any { return Sky_os_exec_CmdCombinedOutput(a0) }
 
 func Os_Exec_CmdEnviron(a0 any) any { return Sky_os_exec_CmdEnviron(a0) }
@@ -2636,11 +2660,121 @@ func Os_Exec_ExitErrorSys(a0 any) any { return Sky_os_exec_ExitErrorSys(a0) }
 
 func Os_Exec_ExitErrorSysUsage(a0 any) any { return Sky_os_exec_ExitErrorSysUsage(a0) }
 
+func Os_Exec_NewCmd(a0 any) any { return Sky_os_exec_NEW_Cmd(a0) }
+
+func Os_Exec_CmdPath(a0 any) any { return Sky_os_exec_FIELD_Cmd_Path(a0) }
+
+func Os_Exec_CmdSetPath(a0 any) any {
+	return func(a1 any) any { return Sky_os_exec_SET_Cmd_Path(a0, a1) }
+}
+
+func Os_Exec_CmdArgs(a0 any) any { return Sky_os_exec_FIELD_Cmd_Args(a0) }
+
+func Os_Exec_CmdSetArgs(a0 any) any {
+	return func(a1 any) any { return Sky_os_exec_SET_Cmd_Args(a0, a1) }
+}
+
+func Os_Exec_CmdEnv(a0 any) any { return Sky_os_exec_FIELD_Cmd_Env(a0) }
+
+func Os_Exec_CmdSetEnv(a0 any) any {
+	return func(a1 any) any { return Sky_os_exec_SET_Cmd_Env(a0, a1) }
+}
+
+func Os_Exec_CmdDir(a0 any) any { return Sky_os_exec_FIELD_Cmd_Dir(a0) }
+
+func Os_Exec_CmdSetDir(a0 any) any {
+	return func(a1 any) any { return Sky_os_exec_SET_Cmd_Dir(a0, a1) }
+}
+
+func Os_Exec_CmdStdin(a0 any) any { return Sky_os_exec_FIELD_Cmd_Stdin(a0) }
+
+func Os_Exec_CmdSetStdin(a0 any) any {
+	return func(a1 any) any { return Sky_os_exec_SET_Cmd_Stdin(a0, a1) }
+}
+
+func Os_Exec_CmdStdout(a0 any) any { return Sky_os_exec_FIELD_Cmd_Stdout(a0) }
+
+func Os_Exec_CmdSetStdout(a0 any) any {
+	return func(a1 any) any { return Sky_os_exec_SET_Cmd_Stdout(a0, a1) }
+}
+
+func Os_Exec_CmdStderr(a0 any) any { return Sky_os_exec_FIELD_Cmd_Stderr(a0) }
+
+func Os_Exec_CmdSetStderr(a0 any) any {
+	return func(a1 any) any { return Sky_os_exec_SET_Cmd_Stderr(a0, a1) }
+}
+
+func Os_Exec_CmdExtraFiles(a0 any) any { return Sky_os_exec_FIELD_Cmd_ExtraFiles(a0) }
+
+func Os_Exec_CmdSetExtraFiles(a0 any) any {
+	return func(a1 any) any { return Sky_os_exec_SET_Cmd_ExtraFiles(a0, a1) }
+}
+
+func Os_Exec_CmdSysProcAttr(a0 any) any { return Sky_os_exec_FIELD_Cmd_SysProcAttr(a0) }
+
+func Os_Exec_CmdSetSysProcAttr(a0 any) any {
+	return func(a1 any) any { return Sky_os_exec_SET_Cmd_SysProcAttr(a0, a1) }
+}
+
+func Os_Exec_CmdProcess(a0 any) any { return Sky_os_exec_FIELD_Cmd_Process(a0) }
+
+func Os_Exec_CmdSetProcess(a0 any) any {
+	return func(a1 any) any { return Sky_os_exec_SET_Cmd_Process(a0, a1) }
+}
+
+func Os_Exec_CmdProcessState(a0 any) any { return Sky_os_exec_FIELD_Cmd_ProcessState(a0) }
+
+func Os_Exec_CmdSetProcessState(a0 any) any {
+	return func(a1 any) any { return Sky_os_exec_SET_Cmd_ProcessState(a0, a1) }
+}
+
+func Os_Exec_CmdErr(a0 any) any { return Sky_os_exec_FIELD_Cmd_Err(a0) }
+
+func Os_Exec_CmdSetErr(a0 any) any {
+	return func(a1 any) any { return Sky_os_exec_SET_Cmd_Err(a0, a1) }
+}
+
+func Os_Exec_CmdWaitDelay(a0 any) any { return Sky_os_exec_FIELD_Cmd_WaitDelay(a0) }
+
+func Os_Exec_CmdSetWaitDelay(a0 any) any {
+	return func(a1 any) any { return Sky_os_exec_SET_Cmd_WaitDelay(a0, a1) }
+}
+
+func Os_Exec_NewError(a0 any) any { return Sky_os_exec_NEW_Error(a0) }
+
+func Os_Exec_ErrorName(a0 any) any { return Sky_os_exec_FIELD_Error_Name(a0) }
+
+func Os_Exec_ErrorSetName(a0 any) any {
+	return func(a1 any) any { return Sky_os_exec_SET_Error_Name(a0, a1) }
+}
+
+func Os_Exec_ErrorErr(a0 any) any { return Sky_os_exec_FIELD_Error_Err(a0) }
+
+func Os_Exec_ErrorSetErr(a0 any) any {
+	return func(a1 any) any { return Sky_os_exec_SET_Error_Err(a0, a1) }
+}
+
+func Os_Exec_NewExitError(a0 any) any { return Sky_os_exec_NEW_ExitError(a0) }
+
+func Os_Exec_ExitErrorProcessState(a0 any) any { return Sky_os_exec_FIELD_ExitError_ProcessState(a0) }
+
+func Os_Exec_ExitErrorSetProcessState(a0 any) any {
+	return func(a1 any) any { return Sky_os_exec_SET_ExitError_ProcessState(a0, a1) }
+}
+
+func Os_Exec_ExitErrorStderr(a0 any) any { return Sky_os_exec_FIELD_ExitError_Stderr(a0) }
+
+func Os_Exec_ExitErrorSetStderr(a0 any) any {
+	return func(a1 any) any { return Sky_os_exec_SET_ExitError_Stderr(a0, a1) }
+}
+
 func Os_Exec_ErrDot(_ ...any) any { return sky_callZeroOrNil(Sky_os_exec_ErrDot) }
 
 func Os_Exec_ErrNotFound(_ ...any) any { return sky_callZeroOrNil(Sky_os_exec_ErrNotFound) }
 
 func Os_Exec_ErrWaitDelay(_ ...any) any { return sky_callZeroOrNil(Sky_os_exec_ErrWaitDelay) }
+
+func Os_Exec_CmdCancel(a0 any) any { return Sky_os_exec_CmdCancel(a0) }
 
 func Os_Exec_ExitErrorSystemTime(a0 any) any { return Sky_os_exec_ExitErrorSystemTime(a0) }
 
@@ -2824,16 +2958,46 @@ func Regexp_RegexpAppendText(a0 any, a1 any) any { return Sky_regexp_RegexpAppen
 
 func Regexp_RegexpCopy(a0 any) any { return Sky_regexp_RegexpCopy(a0) }
 
+func Regexp_RegexpExpand(a0 any, a1 any, a2 any, a3 any, a4 any) any {
+	return Sky_regexp_RegexpExpand(a0, a1, a2, a3, a4)
+}
+
+func Regexp_RegexpExpandString(a0 any, a1 any, a2 any, a3 any, a4 any) any {
+	return Sky_regexp_RegexpExpandString(a0, a1, a2, a3, a4)
+}
+
 func Regexp_RegexpFind(a0 any, a1 any) any { return Sky_regexp_RegexpFind(a0, a1) }
+
+func Regexp_RegexpFindAll(a0 any, a1 any, a2 any) any { return Sky_regexp_RegexpFindAll(a0, a1, a2) }
 
 func Regexp_RegexpFindAllString(a0 any, a1 any, a2 any) any {
 	return Sky_regexp_RegexpFindAllString(a0, a1, a2)
 }
 
+func Regexp_RegexpFindAllSubmatch(a0 any, a1 any, a2 any) any {
+	return Sky_regexp_RegexpFindAllSubmatch(a0, a1, a2)
+}
+
+func Regexp_RegexpFindIndex(a0 any, a1 any) any { return Sky_regexp_RegexpFindIndex(a0, a1) }
+
 func Regexp_RegexpFindString(a0 any, a1 any) any { return Sky_regexp_RegexpFindString(a0, a1) }
+
+func Regexp_RegexpFindStringIndex(a0 any, a1 any) any {
+	return Sky_regexp_RegexpFindStringIndex(a0, a1)
+}
 
 func Regexp_RegexpFindStringSubmatch(a0 any, a1 any) any {
 	return Sky_regexp_RegexpFindStringSubmatch(a0, a1)
+}
+
+func Regexp_RegexpFindStringSubmatchIndex(a0 any, a1 any) any {
+	return Sky_regexp_RegexpFindStringSubmatchIndex(a0, a1)
+}
+
+func Regexp_RegexpFindSubmatch(a0 any, a1 any) any { return Sky_regexp_RegexpFindSubmatch(a0, a1) }
+
+func Regexp_RegexpFindSubmatchIndex(a0 any, a1 any) any {
+	return Sky_regexp_RegexpFindSubmatchIndex(a0, a1)
 }
 
 func Regexp_RegexpLiteralPrefix(a0 any) any { return Sky_regexp_RegexpLiteralPrefix(a0) }
@@ -2873,6 +3037,8 @@ func Regexp_RegexpSubexpIndex(a0 any, a1 any) any { return Sky_regexp_RegexpSube
 func Regexp_RegexpSubexpNames(a0 any) any { return Sky_regexp_RegexpSubexpNames(a0) }
 
 func Regexp_RegexpUnmarshalText(a0 any, a1 any) any { return Sky_regexp_RegexpUnmarshalText(a0, a1) }
+
+func Regexp_NewRegexp(a0 any) any { return Sky_regexp_NEW_Regexp(a0) }
 
 func SetLevelFilter(v0 any) any {
 	return SkyADT{Tag: 1, SkyName: "SetLevelFilter", Fields: []any{v0}}
@@ -2919,7 +3085,7 @@ func readFileEntries(source any) any {
 	}()
 }
 
-// sky:type collectFileEntries : List any -> Dict any Int -> List any -> { entries : List t175 , counts : Dict t183 Int , newEntries : List elem }
+// sky:type collectFileEntries : List any -> Dict any Int -> List any -> { counts : Dict t183 Int , newEntries : List elem , entries : List t175 }
 
 func collectFileEntries(watched any, counts any, existing any) any {
 	return sky_call(sky_call(sky_listFoldl(func(source any) any {
@@ -3044,7 +3210,7 @@ func initCommandScanner(source any) any {
 	}()
 }
 
-// sky:type resolveMode : List any -> any -> { mode : SourceMode , watched : List { label : t249 , path : t249 } , scanners : List elem }
+// sky:type resolveMode : List any -> any -> { watched : List { path : t252 , label : t252 } , scanners : List elem , mode : SourceMode }
 
 func resolveMode(args any, sources any) any {
 	return func() any {
@@ -3064,7 +3230,7 @@ func resolveMode(args any, sources any) any {
 	}()
 }
 
-// sky:type init : any -> ( { autoScroll : Bool , sourceFilter : String , theme : String , entries : List t316 , levelFilter : String , scanners : List t320 , searchFilter : String , sourceMode : SourceMode , webhookRules : List WebhookRule , scopeFilter : String , fileCounts : Dict t322 Int , watched : List { label : String , path : String } } , any )
+// sky:type init : any -> ( { searchFilter : String , scanners : List t323 , watched : List { path : String , label : String } , theme : String , entries : List t318 , scopeFilter : String , sourceFilter : String , webhookRules : List WebhookRule , fileCounts : Dict t327 Int , autoScroll : Bool , levelFilter : String , sourceMode : SourceMode } , any )
 
 func init_(_ any) any {
 	return func() any {
@@ -3178,6 +3344,8 @@ func subscriptions(_ any) any {
 	return sky_call(sky_timeEvery(200), SkyADT{Tag: 0, SkyName: "Tick"})
 }
 
+// sky:type filterEntry : String -> String -> String -> String -> any -> Bool
+
 func filterEntry(levelStr any, scopeStr any, searchStr any, sourceStr any, entry any) any {
 	return func() any {
 		levelOk := func() any {
@@ -3204,7 +3372,7 @@ func filterEntry(levelStr any, scopeStr any, searchStr any, sourceStr any, entry
 					if sky_asSkyResult(__subject).SkyName == "Ok" {
 						re := sky_asSkyResult(__subject).OkValue
 						_ = re
-						return Regexp_RegexpMatchString(re, sky_asMap(entry)["message"])
+						return sky_call(sky_resultWithDefault(false), Regexp_RegexpMatchString(re, sky_asMap(entry)["message"]))
 					}
 					if sky_asSkyResult(__subject).SkyName == "Err" {
 						return sky_call(sky_stringContains(sky_stringToLower(searchStr)), sky_stringToLower(sky_asMap(entry)["message"]))

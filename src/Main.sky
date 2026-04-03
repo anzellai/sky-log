@@ -317,9 +317,11 @@ filterEntry levelStr scopeStr searchStr sourceStr entry =
                 True
             else
                 case Regexp.compile ("(?i)" ++ searchStr) of
+
                     Ok re ->
-                        Regexp.regexpMatchString re entry.message
-                    
+                        Result.withDefault False
+                            (Regexp.regexpMatchString re entry.message)
+
                     Err _ ->
                         String.contains (String.toLower searchStr)
                             (String.toLower entry.message)
