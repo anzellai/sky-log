@@ -9,33 +9,9 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            goos: linux
-            goarch: amd64
-            artifact: sky-log-linux-x64
-          - os: ubuntu-24.04-arm
-            goos: linux
-            goarch: arm64
-            artifact: sky-log-linux-arm64
-          - os: macos-15
-            goos: darwin
-            goarch: amd64
-            artifact: sky-log-darwin-x64
-          - os: macos-latest
-            goos: darwin
-            goarch: arm64
-            artifact: sky-log-darwin-arm64
-          - os: ubuntu-latest
-            goos: windows
-            goarch: amd64
-            artifact: sky-log-windows-x64.exe
-
-    runs-on: ${{ matrix.os }}
-
+  # Build Sky source → Go source on one runner, then cross-compile
+  compile:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -54,14 +30,54 @@ jobs:
       - name: Install dependencies
         run: sky install
 
-      - name: Build
-        run: sky build src/Main.sky
+      - name: Compile Sky to Go
+        run: |
+          sky build src/Main.sky
+          echo "Declarations: $(grep -c 'func ' sky-out/main.go)"
+          echo "Files in sky-out:"
+          ls sky-out/
 
-      - name: Build release binary
+      - name: Upload Go source
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-source
+          path: sky-out/
+
+  build:
+    needs: compile
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: sky-log-linux-x64
+          - os: ubuntu-24.04-arm
+            artifact: sky-log-linux-arm64
+          - os: macos-15
+            artifact: sky-log-darwin-x64
+          - os: macos-latest
+            artifact: sky-log-darwin-arm64
+          - os: windows-latest
+            artifact: sky-log-windows-x64.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+
+      - name: Download Go source
+        uses: actions/download-artifact@v4
+        with:
+          name: go-source
+          path: sky-out
+
+      - name: Build binary
         run: |
           cd sky-out
           go build -gcflags="all=-l" -ldflags="-s -w" -o ../${{ matrix.artifact }} .
           ls -la ../${{ matrix.artifact }}
+        shell: bash
 
       - uses: actions/upload-artifact@v4
         with:
@@ -80,6 +96,7 @@ jobs:
         run: |
           mkdir -p release
           for dir in artifacts/*/; do
+            [[ "$dir" == *"go-source"* ]] && continue
             cp "$dir"* release/ 2>/dev/null || true
           done
           ls -la release/
