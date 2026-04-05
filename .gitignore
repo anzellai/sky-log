@@ -13,3 +13,4 @@ go.sum
 
 # Environment
 .env
+sky-out/app

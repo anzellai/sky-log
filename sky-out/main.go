@@ -2033,7 +2033,7 @@ func Log_Entry_DecodeEntry(line any, source any) any {
 	}()
 }
 
-// sky:type parseRawLine : any -> any -> { message : t167 , level : t171 , scope : t168 , source : t168 , timestamp : t170 }
+// sky:type parseRawLine : any -> any -> { source : t168 , scope : t168 , message : t167 , timestamp : t170 , level : t171 }
 
 func Log_Entry_ParseRawLine(line any, source any) any {
 	return func() any {
@@ -2135,7 +2135,7 @@ func Log_Config_EmptyWebhook() any {
 	return map[string]any{"url": "", "filter": ""}
 }
 
-// sky:type parseConfig : any -> { webhook : { filter : String , url : String } , sources : List elem }
+// sky:type parseConfig : any -> { sources : List elem , webhook : { url : String , filter : String } }
 
 func Log_Config_ParseConfig(path any) any {
 	return func() any {
@@ -2156,7 +2156,7 @@ func Log_Config_ParseConfig(path any) any {
 	}()
 }
 
-// sky:type finalizeState : any -> { webhook : WebhookConfig , sources : t137 }
+// sky:type finalizeState : any -> { sources : t137 , webhook : WebhookConfig }
 
 func Log_Config_FinalizeState(state any) any {
 	return func() any {
@@ -3199,7 +3199,7 @@ func readFileEntries(source any) any {
 	}()
 }
 
-// sky:type collectFileEntries : List any -> Dict any Int -> List any -> { counts : Dict t183 Int , newEntries : List elem , entries : List t175 }
+// sky:type collectFileEntries : List any -> Dict any Int -> List any -> { counts : Dict t183 Int , entries : List t175 , newEntries : List elem }
 
 func collectFileEntries(watched any, counts any, existing any) any {
 	return sky_call(sky_call(sky_listFoldl(func(source any) any {
@@ -3324,7 +3324,7 @@ func initCommandScanner(source any) any {
 	}()
 }
 
-// sky:type resolveMode : List any -> any -> { scanners : List elem , mode : SourceMode , watched : List { label : t252 , path : t252 } }
+// sky:type resolveMode : List any -> any -> { mode : SourceMode , watched : List { label : t252 , path : t252 } , scanners : List elem }
 
 func resolveMode(args any, sources any) any {
 	return func() any {
@@ -3344,7 +3344,7 @@ func resolveMode(args any, sources any) any {
 	}()
 }
 
-// sky:type init : any -> ( { theme : String , entries : List t319 , scanners : List t323 , levelFilter : String , scopeFilter : String , sourceMode : SourceMode , sourceFilter : String , autoScroll : Bool , watched : List { label : String , path : String } , webhookRules : List WebhookRule , fileCounts : Dict t325 Int , searchFilter : String } , any )
+// sky:type init : any -> ( { scopeFilter : String , sourceFilter : String , fileCounts : Dict t325 Int , sourceMode : SourceMode , webhookRules : List WebhookRule , autoScroll : Bool , levelFilter : String , searchFilter : String , scanners : List t323 , entries : List t318 , watched : List { path : String , label : String } , theme : String } , any )
 
 func init_(_ any) any {
 	return func() any {
