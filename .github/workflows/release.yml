@@ -9,42 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  # Build Sky source → Go source on one runner, then cross-compile
-  compile:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "stable"
-
-      - name: Install Sky compiler
-        run: curl -fsSL https://raw.githubusercontent.com/anzellai/sky/main/install.sh | SKY_VERSION=0.7.16 sh
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install goimports
-        run: go install golang.org/x/tools/cmd/goimports@latest
-
-      - name: Install dependencies
-        run: sky install
-
-      - name: Compile Sky to Go
-        run: |
-          sky build src/Main.sky
-          echo "Declarations: $(grep -c 'func ' sky-out/main.go)"
-          echo "Files in sky-out:"
-          ls sky-out/
-
-      - name: Upload Go source
-        uses: actions/upload-artifact@v4
-        with:
-          name: go-source
-          path: sky-out/
-
   build:
-    needs: compile
     strategy:
       matrix:
         include:
@@ -62,17 +27,13 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/setup-go@v5
         with:
           go-version: "stable"
 
-      - name: Download Go source
-        uses: actions/download-artifact@v4
-        with:
-          name: go-source
-          path: sky-out
-
-      - name: Build binary
+      - name: Build binary from committed Go source
         run: |
           cd sky-out
           go build -gcflags="all=-l" -ldflags="-s -w" -o ../${{ matrix.artifact }} .
@@ -96,7 +57,6 @@ jobs:
         run: |
           mkdir -p release
           for dir in artifacts/*/; do
-            [[ "$dir" == *"go-source"* ]] && continue
             cp "$dir"* release/ 2>/dev/null || true
           done
           ls -la release/
