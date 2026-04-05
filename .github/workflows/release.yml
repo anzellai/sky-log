@@ -57,14 +57,11 @@ jobs:
       - name: Build
         run: sky build src/Main.sky
 
-      - name: Cross-compile Go binary
+      - name: Build release binary
         run: |
           cd sky-out
-          go clean -cache
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -gcflags="all=-l" -ldflags="-s -w" -o ../${{ matrix.artifact }} .
+          go build -gcflags="all=-l" -ldflags="-s -w" -o ../${{ matrix.artifact }} .
           ls -la ../${{ matrix.artifact }}
-        env:
-          CGO_ENABLED: 0
 
       - uses: actions/upload-artifact@v4
         with:
