@@ -60,7 +60,9 @@ jobs:
       - name: Cross-compile Go binary
         run: |
           cd sky-out
+          go clean -cache
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -gcflags="all=-l" -ldflags="-s -w" -o ../${{ matrix.artifact }} .
+          ls -la ../${{ matrix.artifact }}
         env:
           CGO_ENABLED: 0
 
