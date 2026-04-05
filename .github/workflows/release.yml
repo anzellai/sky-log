@@ -20,7 +20,7 @@ jobs:
           go-version: "stable"
 
       - name: Install Sky compiler
-        run: curl -fsSL https://raw.githubusercontent.com/anzellai/sky/main/install.sh | SKY_VERSION=0.7.14 sh
+        run: curl -fsSL https://raw.githubusercontent.com/anzellai/sky/main/install.sh | SKY_VERSION=0.7.16 sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
