@@ -13,7 +13,12 @@ import Log.Config as Config
 type alias WebhookRule =
     { filter : String , url : String , sourceName : String }
 
-logMsg : String -> Unit
+-- `Unit` is not a Sky stdlib type alias; the unit type is `()`.
+-- Pre-v0.9.6 the compiler silently accepted the unknown `Unit`
+-- annotation and codegen emitted a bare `Unit` as a Go type which
+-- doesn't compile. Audit-tightened typed-codegen now surfaces the
+-- bug as a real go-build error.
+logMsg : String -> ()
 logMsg msg =
     let
         _ =
@@ -75,7 +80,7 @@ buildPayload entry =
             ]
         )
 
-send : String -> LogEntry -> Unit
+send : String -> LogEntry -> ()
 send url entry =
     let
         payload =
@@ -96,7 +101,7 @@ send url entry =
     in
         ()
 
-processNewEntries : List WebhookRule -> List LogEntry -> Unit
+processNewEntries : List WebhookRule -> List LogEntry -> ()
 processNewEntries rules entries =
     if List.isEmpty rules then
         ()

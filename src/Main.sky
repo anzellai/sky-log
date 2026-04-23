@@ -20,9 +20,20 @@ import Std.Cmd as Cmd
 import Std.Sub as Sub
 import Std.Time as Time
 import Regexp
-import Log.Entry as Entry exposing (LogEntry, Level, Debug, Info, Warn, ErrorLevel)
+-- Per CLAUDE.md Limitation #11, `exposing (Constructor)` on its own
+-- doesn't import ADT constructors from user modules (only kernel
+-- modules). Workaround: import via `exposing (..)` so all symbols
+-- (constructors + aliases + functions) come into scope. The `as Entry`
+-- alias remains usable for the qualified-call sites
+-- (Entry.decodeEntry, Entry.levelToInt, etc.).
+import Log.Entry as Entry exposing (..)
 import Log.Config as Config
-import Log.Webhook as Webhook
+-- Per CLAUDE.md Limitation #15, `import X as Alias` leaks the alias
+-- into codegen for exposed record/ADT types — `Webhook.WebhookRule`
+-- emits as `Webhook_WebhookRule_R` instead of `Log_Webhook_WebhookRule_R`,
+-- breaking cross-module resolution. Workaround: import the type by
+-- name (no alias prefix at use sites) AND keep the function alias.
+import Log.Webhook as Webhook exposing (WebhookRule)
 
 helpText : String
 helpText =
@@ -53,7 +64,7 @@ type alias Model =
     , scanners : List SourceScanner
     , fileCounts : Dict.Dict String Int
     , sourceMode : SourceMode
-    , webhookRules : List Webhook.WebhookRule
+    , webhookRules : List WebhookRule
     }
 
 type Msg
@@ -69,13 +80,18 @@ type Msg
 
 readFileEntries : WatchedFile -> List LogEntry
 readFileEntries source =
-    case File.readFile source.path of
+    -- File.readFile returns Task Error String per the effect-boundary
+    -- audit. We force eagerly with Task.run because the caller is
+    -- inside a synchronous polling loop — matches pre-migration
+    -- semantics. For long-running reads, factor into a top-level
+    -- Task and dispatch via Cmd.perform.
+    case Task.run (File.readFile source.path) of
         Ok content ->
             content
                 |> String.lines
                 |> List.filter (\l -> not (String.isEmpty l))
                 |> List.map (\l -> Entry.decodeEntry l source.label)
-        
+
         Err _ ->
             []
 
@@ -338,13 +354,13 @@ levelClass level =
     case level of
         Debug ->
             "log-entry l-debug"
-        
+
         Info ->
             "log-entry l-info"
-        
+
         Warn ->
             "log-entry l-warn"
-        
+
         ErrorLevel ->
             "log-entry l-error"
 
