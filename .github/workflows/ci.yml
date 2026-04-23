@@ -20,13 +20,17 @@ jobs:
         with:
           go-version: "stable"
 
+      - name: Install goimports (required by Sky FFI codegen)
+        run: go install golang.org/x/tools/cmd/goimports@latest
+
       - name: Install Sky compiler
-        run: curl -fsSL https://raw.githubusercontent.com/anzellai/sky/main/install.sh | SKY_VERSION=0.7.16 sh
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          curl -fsSL https://raw.githubusercontent.com/anzellai/sky/main/install.sh | SKY_INSTALL_DIR="$HOME/.local/bin" sh
+          "$HOME/.local/bin/sky" --version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install goimports
-        run: go install golang.org/x/tools/cmd/goimports@latest
 
       - name: Install dependencies
         run: sky install
