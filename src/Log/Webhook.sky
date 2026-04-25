@@ -1,6 +1,7 @@
 module Log.Webhook exposing (..)
 
 import Sky.Core.Prelude exposing (..)
+import Sky.Core.Result as Result
 import Sky.Core.String as String
 import Sky.Core.List as List
 import Sky.Core.Json.Encode as Encode
@@ -61,8 +62,11 @@ matchesFilter pattern entry =
     else
         case Regexp.compile ("(?i)" ++ pattern) of
             Ok re ->
-                Regexp.regexpMatchString re entry.message
-            
+                -- regexpMatchString returns Result Error Bool from
+                -- the Go FFI; collapse to Bool with no-match on err.
+                Result.withDefault False
+                    (Regexp.regexpMatchString re entry.message)
+
             Err _ ->
                 String.contains (String.toLower pattern)
                     (String.toLower entry.message)

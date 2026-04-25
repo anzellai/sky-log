@@ -4,6 +4,7 @@ import Sky.Core.Prelude exposing (..)
 import Sky.Core.String as String
 import Sky.Core.List as List
 import Sky.Core.File as File
+import Sky.Core.Task as Task
 
 type alias Source =
     { name : String , command : String , filter : String , webhookUrl : String }
@@ -32,7 +33,10 @@ emptyWebhook =
 
 parseConfig : String -> AppConfig
 parseConfig path =
-    case File.readFile path of
+    -- File.readFile returns Task Error String — collapse to a sync
+    -- Result here because parseConfig is called at startup before
+    -- the Task pipeline starts. Empty config on read failure.
+    case Task.run (File.readFile path) of
         Ok content ->
             content
                 |> String.lines
@@ -41,7 +45,7 @@ parseConfig path =
                     , webhook = emptyWebhook
                     , section = NoSection
                     }
-        
+
         Err _ ->
             { sources = [] , webhook = emptyWebhook }
 

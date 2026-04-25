@@ -1,11 +1,13 @@
 module Web.App exposing (main)
 
 import Sky.Core.Prelude exposing (..)
-import Sky.Core.Args as Args
+import Sky.Core.System as System
+import Sky.Core.Result as Result
 import Sky.Core.String as String
 import Sky.Core.List as List
 import Sky.Core.File as File
 import Sky.Core.Dict as Dict
+import Sky.Core.Task as Task
 import Os
 import Os.Exec as Exec
 import Bufio
@@ -179,11 +181,16 @@ resolveMode args sources =
                 , mode = StreamMode
                 }
 
-init : Page -> ( Model, Cmd.Cmd Msg )
+-- See note in Main.sky's init: param stays polymorphic so HM doesn't
+-- narrow the framework-supplied request map to a concrete ADT.
+init : a -> ( Model, Cmd.Cmd Msg )
 init _ =
     let
+        -- v0.10.0: System.args returns Task Error (List String).
         args =
-            Args.getArgs ()
+            System.args ()
+                |> Task.run
+                |> Result.withDefault []
                 |> List.drop 1
                 |> List.filter (\a -> not (String.startsWith "-" a))
         config =
