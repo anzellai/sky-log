@@ -46,8 +46,7 @@ type Page
     = LogPage
 
 type alias SourceScanner =
-    { proc : Maybe Process.Process
-    , offset : Int
+    { proc : Process.Process
     , partial : String
     , label : String
     }
@@ -61,6 +60,9 @@ type SourceMode
     = FileMode
     | StreamMode
 
+type alias FileRead =
+    ( String, List LogEntry )
+
 type alias FileCollect =
     { entries : List LogEntry
     , counts : Dict.Dict String Int
@@ -69,7 +71,8 @@ type alias FileCollect =
 
 type alias Resolved =
     { watched : List WatchedFile
-    , scanners : List SourceScanner
+    , commands : List Config.Source
+    , stdin : Bool
     , mode : SourceMode
     }
 
@@ -82,6 +85,7 @@ type alias Model =
     , autoScroll : Bool
     , theme : String
     , watched : List WatchedFile
+    , streamLabels : List String
     , scanners : List SourceScanner
     , fileCounts : Dict.Dict String Int
     , sourceMode : SourceMode
@@ -90,6 +94,11 @@ type alias Model =
 
 type Msg
     = Tick
+    | GotFiles (Result Error (List FileRead))
+    | Spawned String (Result Error Process.Process)
+    | ProcessEvent String Process.Event
+    | StdinLine (Result Error String)
+    | WebhooksDone
     | SetLevelFilter String
     | SetScopeFilter String
     | SetSearchFilter String
@@ -100,143 +109,103 @@ type Msg
     | Navigate Page
 
 
-readFileEntries : WatchedFile -> List LogEntry
-readFileEntries source =
-    -- File.readFile returns Task Error String per the effect-boundary
-    -- audit. We force eagerly with Task.run because the caller is
-    -- inside a synchronous polling loop — matches pre-migration
-    -- semantics. For long-running reads, factor into a top-level
-    -- Task and dispatch via Cmd.perform.
-    case Task.run (File.readFile source.path) of
-
-        Ok content ->
-            content |> String.lines
-                |> List.filter (\l -> not (String.isEmpty l))
-                |> List.map (\l -> Entry.decodeEntry l source.label)
-
-        Err _ ->
-            []
+-- Read one watched file. An unreadable file counts as empty.
+readFileTask : WatchedFile -> Task Error FileRead
+readFileTask source =
+    File.readFile source.path
+        |> Task.map
+               (\content ->
+                   ( source.path
+                   , content |> String.lines
+                         |> List.filter (\l -> not (String.isEmpty l))
+                         |> List.map (\l -> Entry.decodeEntry l source.label)
+                   ))
+        |> Task.onError (\_ -> Task.succeed ( source.path, [] ))
 
 
-collectFileEntries : List WatchedFile -> Dict.Dict String Int -> List LogEntry -> FileCollect
-collectFileEntries watched counts existing =
+readFilesTask : List WatchedFile -> Task Error (List FileRead)
+readFilesTask watched =
+    Task.sequence (List.map readFileTask watched)
+
+
+-- Fold the files just read into the model: only entries past the count
+-- already seen are new.
+collectFileEntries : List FileRead -> Dict.Dict String Int -> List LogEntry -> FileCollect
+collectFileEntries reads counts existing =
     List.foldl
-        (\source acc ->
+        (\( path, allEntries ) acc ->
             let
                 seen =
-                    case Dict.get source.path acc.counts of
+                    case Dict.get path acc.counts of
 
                         Just n ->
                             n
 
                         Nothing ->
                             0
-                allEntries = readFileEntries source
-                total = List.length allEntries
                 newOnes = List.drop seen allEntries
             in
                 { entries = List.append acc.entries newOnes
-                , counts = Dict.insert source.path total acc.counts
+                , counts = Dict.insert path (List.length allEntries) acc.counts
                 , newEntries = List.append acc.newEntries newOnes
                 })
         { entries = existing, counts = counts, newEntries = [] }
-        watched
+        reads
 
 
-scanLine : SourceScanner -> ( SourceScanner, List LogEntry )
-scanLine source =
-    case source.proc of
-
-        Just proc ->
-            case Task.run
-                     (Process.readWithin 20 proc Process.Stdout source.offset) of
-
-                Ok chunk ->
-                    let
-                        parts =
-                            String.split "\n" (source.partial ++ chunk.data)
-                        complete = List.take (List.length parts - 1) parts
-                        rest =
-                            List.drop (List.length parts - 1) parts |> List.head
-                                |> Maybe.withDefault ""
-                    in
-                        ( { source | offset = chunk.next, partial = rest }
-                        , List.map
-                              (\l -> Entry.decodeEntry l source.label)
-                              complete
-                        )
-
-                Err _ ->
-                    ( source, [] )
-
-        Nothing ->
-            case Task.run (Io.readLine ()) of
-
-                Ok text ->
-                    ( source, [ Entry.decodeEntry text source.label ] )
-
-                Err _ ->
-                    ( source, [] )
-
-
-collectStreamEntries : List SourceScanner -> ( List SourceScanner, List LogEntry )
-collectStreamEntries scanners =
+-- Add streamed text to a source's partial line. Returns the new partial
+-- line and the entries for every complete line.
+ingest : String -> String -> String -> ( String, List LogEntry )
+ingest label partial text =
     let
-        polled = List.map scanLine scanners
+        parts = String.split "\n" (partial ++ text)
+        count = List.length parts
+        complete = List.take (count - 1) parts
+        rest =
+            List.drop (count - 1) parts |> List.head |> Maybe.withDefault ""
     in
-        ( List.map Tuple.first polled, List.concatMap Tuple.second polled )
+        ( rest
+        , complete |> List.map (String.replace "\r" "")
+              |> List.map (\l -> Entry.decodeEntry l label)
+        )
 
 
-initStdinScanner =
-    Just { proc = Nothing, offset = 0, partial = "", label = "stdin" }
+-- Stream sources run off the update loop: a child is spawned by a Cmd and
+-- its output arrives as `ProcessEvent` Msgs through `Process.events`. Stdin
+-- is read one line at a time by a Cmd.
+spawnCommand : Config.Source -> Cmd.Cmd Msg
+spawnCommand source =
+    Cmd.perform
+        (Process.command "sh" |> Process.withArgs [ "-c", source.command ]
+            |> Process.spawn)
+        (Spawned source.name)
 
 
-initCommandScanner : Config.Source -> Maybe SourceScanner
-initCommandScanner source =
-    case Task.run
-             (Process.spawn
-                 (Process.command "sh"
-                     |> Process.withArgs [ "-c", source.command ])) of
-
-        Ok proc ->
-            Just
-                { proc = Just proc
-                , offset = 0
-                , partial = ""
-                , label = source.name
-                }
-
-        Err _ ->
-            Nothing
+readStdinLine : Cmd.Cmd Msg
+readStdinLine =
+    Cmd.perform (Io.readLine ()) StdinLine
 
 
 resolveMode : List String -> List Config.Source -> Resolved
 resolveMode args sources =
     if not (List.isEmpty args) then
         { watched = List.map (\f -> { path = f, label = f }) args
-        , scanners = []
+        , commands = []
+        , stdin = False
         , mode = FileMode
         }
 
-    else
-        let
-            cmdScanners = List.filterMap initCommandScanner sources
-        in
-            if not (List.isEmpty cmdScanners) then
-                { watched = [], scanners = cmdScanners, mode = StreamMode }
+    else if not (List.isEmpty sources) then
+        { watched = [], commands = sources, stdin = False, mode = StreamMode }
 
-            else
-                { watched = []
-                , scanners = List.filterMap identity [ initStdinScanner ]
-                , mode = StreamMode
-                }
+    else
+        { watched = [], commands = [], stdin = True, mode = StreamMode }
 
 
 -- Sky.Live runtime passes a request-context map (map[string]any with
 -- `"path": …` etc.). Other examples annotate this slot as `a` so HM
 -- doesn't narrow the param to whatever concrete shape the framework
--- happens to send. Narrowing it to `Page` here panicked at GET /
--- with `reflect: Call using map[string]interface {} as type int`.
+-- happens to send.
 init : a -> ( Model, Cmd.Cmd Msg )
 init _ =
     let
@@ -255,10 +224,28 @@ init _ =
         args = List.filter (\a -> not (String.startsWith "-" a)) rawArgs
         config = Config.parseConfig "sky-log.toml"
         resolved = resolveMode args config.sources
-        webhookRules = Webhook.buildRules config
-        result = collectFileEntries resolved.watched Dict.empty []
+        labels =
+            if resolved.stdin then
+                [ "stdin" ]
+
+            else
+                List.map (\s -> s.name) resolved.commands
+        startCmds =
+            List.concat
+                [ if List.isEmpty resolved.watched then
+                      []
+
+                  else
+                      [ Cmd.perform (readFilesTask resolved.watched) GotFiles ]
+                , List.map spawnCommand resolved.commands
+                , if resolved.stdin then
+                      [ readStdinLine ]
+
+                  else
+                      []
+                ]
     in
-        ( { entries = result.entries
+        ( { entries = []
           , levelFilter = ""
           , scopeFilter = ""
           , searchFilter = ""
@@ -266,13 +253,22 @@ init _ =
           , autoScroll = True
           , theme = "dark"
           , watched = resolved.watched
-          , scanners = resolved.scanners
-          , fileCounts = result.counts
+          , streamLabels = labels
+          , scanners = []
+          , fileCounts = Dict.empty
           , sourceMode = resolved.mode
-          , webhookRules = webhookRules
+          , webhookRules = Webhook.buildRules config
           }
-        , Cmd.none
+        , Cmd.batch startCmds
         )
+
+
+-- Append new entries and fire the webhooks for them.
+withNewEntries : List LogEntry -> Model -> ( Model, Cmd.Cmd Msg )
+withNewEntries newEntries model =
+    ( { model | entries = List.append model.entries newEntries }
+    , Webhook.notify WebhooksDone model.webhookRules newEntries
+    )
 
 
 update : Msg -> Model -> ( Model, Cmd.Cmd Msg )
@@ -280,42 +276,103 @@ update msg model =
     case msg of
 
         Tick ->
-            case model.sourceMode of
+            ( model, Cmd.perform (readFilesTask model.watched) GotFiles )
 
-                FileMode ->
-                    let
-                        result =
-                            collectFileEntries
-                                model.watched
-                                model.fileCounts
-                                model.entries
-                        _ =
-                            Webhook.processNewEntries
-                                model.webhookRules
-                                result.newEntries
-                    in
-                        ( { model
-                              | entries = result.entries
-                              , fileCounts = result.counts
-                          }
-                        , Cmd.none
-                        )
+        GotFiles (Ok reads) ->
+            let
+                result =
+                    collectFileEntries reads model.fileCounts model.entries
+            in
+                ( { model
+                      | entries = result.entries
+                      , fileCounts = result.counts
+                  }
+                , Webhook.notify
+                      WebhooksDone
+                      model.webhookRules
+                      result.newEntries
+                )
 
-                StreamMode ->
-                    let
-                        polled = collectStreamEntries model.scanners
-                        newEntries = Tuple.second polled
-                        _ =
-                            Webhook.processNewEntries
-                                model.webhookRules
-                                newEntries
-                    in
-                        ( { model
-                              | entries = List.append model.entries newEntries
-                              , scanners = Tuple.first polled
-                          }
-                        , Cmd.none
-                        )
+        GotFiles (Err _) ->
+            ( model, Cmd.none )
+
+        Spawned label (Ok proc) ->
+            ( { model
+                  | scanners =
+                      List.append
+                          model.scanners
+                          [ { proc = proc, partial = "", label = label } ]
+              }
+            , Cmd.none
+            )
+
+        Spawned _ (Err _) ->
+            ( model, Cmd.none )
+
+        ProcessEvent label (Process.Output Process.Stdout chunk) ->
+            let
+                partial =
+                    model.scanners |> List.filter (\s -> s.label == label)
+                        |> List.head
+                        |> Maybe.map (\s -> s.partial)
+                        |> Maybe.withDefault ""
+                ingested = ingest label partial chunk.data
+                scanners =
+                    List.map
+                        (\s ->
+                            if s.label == label then
+                                { s | partial = Tuple.first ingested }
+
+                            else
+                                s)
+                        model.scanners
+            in
+                withNewEntries
+                    (Tuple.second ingested)
+                    { model | scanners = scanners }
+
+        ProcessEvent _ (Process.Output Process.Stderr _) ->
+            ( model, Cmd.none )
+
+        ProcessEvent label (Process.Exited _) ->
+            -- The child is done: a last line with no newline is still an entry.
+            let
+                partial =
+                    model.scanners |> List.filter (\s -> s.label == label)
+                        |> List.head
+                        |> Maybe.map (\s -> s.partial)
+                        |> Maybe.withDefault ""
+                scanners =
+                    List.map
+                        (\s ->
+                            if s.label == label then
+                                { s | partial = "" }
+
+                            else
+                                s)
+                        model.scanners
+            in
+                if String.isEmpty partial then
+                    ( { model | scanners = scanners }, Cmd.none )
+
+                else
+                    withNewEntries
+                        [ Entry.decodeEntry partial label ]
+                        { model | scanners = scanners }
+
+        StdinLine (Ok text) ->
+            let
+                ( next, cmd ) =
+                    withNewEntries [ Entry.decodeEntry text "stdin" ] model
+            in
+                ( next, Cmd.batch [ cmd, readStdinLine ] )
+
+        StdinLine (Err _) ->
+            -- End of input: stop reading.
+            ( model, Cmd.none )
+
+        WebhooksDone ->
+            ( model, Cmd.none )
 
         SetLevelFilter value ->
             ( { model | levelFilter = value }, Cmd.none )
@@ -351,8 +408,17 @@ update msg model =
 
 
 subscriptions : Model -> Sub.Sub Msg
-subscriptions _ =
-    Time.every 200 Tick
+subscriptions model =
+    case model.sourceMode of
+
+        FileMode ->
+            Time.every 200 Tick
+
+        StreamMode ->
+            Sub.batch
+                (List.map
+                    (\s -> Process.events s.proc (ProcessEvent s.label))
+                    model.scanners)
 
 
 filterEntry : String -> String -> String -> String -> LogEntry -> Bool
@@ -482,7 +548,7 @@ statusText model =
 
         StreamMode ->
             let
-                labels = List.map (\s -> s.label) model.scanners
+                labels = model.streamLabels
             in
                 "Streaming: " ++ String.join ", " labels
 

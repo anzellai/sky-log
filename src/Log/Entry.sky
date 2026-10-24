@@ -185,10 +185,23 @@ detectLevel line =
             Info
 
 
--- Case-insensitive regex match. The stdlib Regex.match treats an invalid
--- pattern as no match, so a literal substring test keeps a half-typed
--- pattern such as "a(" useful.
+-- True when the stdlib regex engine accepts the pattern. `Regex.match` has no
+-- error channel and reports an invalid pattern as no match, so probe with
+-- `|^`, which matches the empty string whenever the pattern compiles. The
+-- bare and the wrapped form are both probed so a stray `)` cannot close the
+-- wrapper and hide an invalid pattern.
+isValidPattern : String -> Bool
+isValidPattern pattern =
+    Regex.match ("(?:" ++ pattern ++ ")|^") ""
+        && Regex.match (pattern ++ "|^") ""
+
+
+-- Case-insensitive regex match. A pattern that does not compile (for example
+-- a half-typed `a(`) falls back to a case-insensitive substring test.
 matchesPattern : String -> String -> Bool
 matchesPattern pattern text =
-    Regex.match ("(?i)" ++ pattern) text
-        || String.contains (String.toLower pattern) (String.toLower text)
+    if isValidPattern pattern then
+        Regex.match ("(?i)" ++ pattern) text
+
+    else
+        String.contains (String.toLower pattern) (String.toLower text)

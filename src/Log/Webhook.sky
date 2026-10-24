@@ -8,6 +8,7 @@ import Sky.Core.Json.Encode as Encode
 import Sky.Core.Io as Io
 import Sky.Core.Process as Process
 import Sky.Core.Task as Task
+import Std.Cmd as Cmd
 import Log.Entry exposing (LogEntry, levelToString, matchesPattern)
 import Log.Config as Config
 
@@ -16,19 +17,6 @@ type alias WebhookRule =
     , url : String
     , sourceName : String
     }
-
-
--- `Unit` is not a Sky stdlib type alias; the unit type is `()`.
--- Pre-v0.9.6 the compiler silently accepted the unknown `Unit`
--- annotation and codegen emitted a bare `Unit` as a Go type which
--- doesn't compile. Audit-tightened typed-codegen now surfaces the
--- bug as a real go-build error.
-logMsg : String -> ()
-logMsg msg =
-    let
-        _ = Task.run (Io.writeStderr (msg ++ "\n"))
-    in
-        ()
 
 
 buildRules : Config.AppConfig -> List WebhookRule
@@ -80,57 +68,67 @@ buildPayload entry =
             ])
 
 
-send : String -> LogEntry -> ()
-send url entry =
-    let
-        payload = buildPayload entry
-        cmdArgs =
-            Process.run
-                "curl"
-                [ "-s"
-                , "-X"
-                , "POST"
-                , "-H"
-                , "Content-Type: application/json"
-                , "-d"
-                , payload
-                , url
-                ]
-        _ = Task.run cmdArgs
-    in
-        ()
+-- A webhook is best effort: a failed log write or POST never stops the app.
+bestEffort : Task Error () -> Task Error ()
+bestEffort task =
+    task |> Task.onError (\_ -> Task.succeed ())
 
 
-processNewEntries : List WebhookRule -> List LogEntry -> ()
-processNewEntries rules entries =
-    if List.isEmpty rules then
-        ()
+logTask : String -> Task Error ()
+logTask msg =
+    bestEffort (Io.writeStderr (msg ++ "\n"))
+
+
+sendTask : String -> LogEntry -> Task Error ()
+sendTask url entry =
+    Process.run
+        "curl"
+        [ "-s"
+        , "-X"
+        , "POST"
+        , "-H"
+        , "Content-Type: application/json"
+        , "-d"
+        , buildPayload entry
+        , url
+        ]
+        |> Task.map (\_ -> ())
+        |> bestEffort
+
+
+fireTask : WebhookRule -> LogEntry -> Task Error ()
+fireTask rule entry =
+    Task.sequence
+        [ logTask
+              ("[webhook] filter matched: source=" ++ entry.source ++ " filter="
+                  ++ rule.filter
+                  ++ " message="
+                  ++ entry.message)
+        , sendTask rule.url entry
+        , logTask ("[webhook] fired: url=" ++ rule.url)
+        ]
+        |> Task.map (\_ -> ())
+
+
+entryTasks : List WebhookRule -> LogEntry -> List (Task Error ())
+entryTasks rules entry =
+    rules
+        |> List.filter
+               (\rule ->
+                   rule.sourceName == entry.source
+                       && matchesFilter rule.filter entry)
+        |> List.map (\rule -> fireTask rule entry)
+
+
+-- `notify done rules entries` fires every matching webhook as one background
+-- Task. `done` is the Msg sent when they have all finished.
+notify : msg -> List WebhookRule -> List LogEntry -> Cmd.Cmd msg
+notify done rules entries =
+    if List.isEmpty rules || List.isEmpty entries then
+        Cmd.none
 
     else
-        List.foldl
-            (\entry _ ->
-                List.foldl
-                    (\rule _ ->
-                        if rule.sourceName == entry.source
-                            && matchesFilter rule.filter entry then
-                            let
-                                _ =
-                                    logMsg
-                                        ("[webhook] filter matched: source="
-                                            ++ entry.source
-                                            ++ " filter="
-                                            ++ rule.filter
-                                            ++ " message="
-                                            ++ entry.message)
-                                _ = send rule.url entry
-                                _ =
-                                    logMsg ("[webhook] fired: url=" ++ rule.url)
-                            in
-                                ()
-
-                        else
-                            ())
-                    ()
-                    rules)
-            ()
-            entries
+        Cmd.perform
+            (Task.sequence (List.concatMap (entryTasks rules) entries)
+                |> Task.map (\_ -> ()))
+            (\_ -> done)
