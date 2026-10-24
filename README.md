@@ -237,11 +237,16 @@ webhook_url = "https://hooks.slack.com/services/T00/B00/xxx"
 
 sky-log is written in [Sky](https://github.com/anzellai/sky), an Elm-inspired language that compiles to Go.
 
+Requires Sky v0.27.14 or later and Go.
+
 ```sh
-sky build src/Main.sky    # compile
+sky build src/Main.sky    # compile to sky-out/app
 sky run src/Main.sky      # build and run
-sky dev src/Main.sky      # watch mode
+sky watch src/Main.sky    # watch mode
+./sky-out/app app.log     # run the built binary (web UI on http://localhost:4000)
 ```
+
+The `sky-out/` build output is not committed.
 
 ## License
 

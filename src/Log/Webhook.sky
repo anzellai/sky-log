@@ -5,14 +5,18 @@ import Sky.Core.Result as Result
 import Sky.Core.String as String
 import Sky.Core.List as List
 import Sky.Core.Json.Encode as Encode
-import Os
-import Os.Exec as Exec
-import Regexp
-import Log.Entry exposing (LogEntry, levelToString)
+import Sky.Core.Io as Io
+import Sky.Core.Process as Process
+import Sky.Core.Task as Task
+import Log.Entry exposing (LogEntry, levelToString, matchesPattern)
 import Log.Config as Config
 
 type alias WebhookRule =
-    { filter : String , url : String , sourceName : String }
+    { filter : String
+    , url : String
+    , sourceName : String
+    }
+
 
 -- `Unit` is not a Sky stdlib type alias; the unit type is `()`.
 -- Pre-v0.9.6 the compiler silently accepted the unknown `Unit`
@@ -22,75 +26,67 @@ type alias WebhookRule =
 logMsg : String -> ()
 logMsg msg =
     let
-        _ =
-            Os.fileWriteString (Os.stderr ()) (msg ++ "\n")
+        _ = Task.run (Io.writeStderr (msg ++ "\n"))
     in
         ()
+
 
 buildRules : Config.AppConfig -> List WebhookRule
 buildRules config =
     List.filterMap
-        (
-        \source ->
+        (\source ->
             let
                 filter =
                     if String.isEmpty source.filter then
                         config.webhook.filter
+
                     else
                         source.filter
                 url =
                     if String.isEmpty source.webhookUrl then
                         config.webhook.url
+
                     else
                         source.webhookUrl
             in
                 if String.isEmpty filter || String.isEmpty url then
                     Nothing
+
                 else
                     Just
-                        { filter = filter
-                        , url = url
-                        , sourceName = source.name
-                        }
-        )
+                        { filter = filter, url = url, sourceName = source.name })
         config.sources
+
 
 matchesFilter : String -> LogEntry -> Bool
 matchesFilter pattern entry =
     if String.isEmpty pattern then
         False
-    else
-        case Regexp.compile ("(?i)" ++ pattern) of
-            Ok re ->
-                -- regexpMatchString returns Result Error Bool from
-                -- the Go FFI; collapse to Bool with no-match on err.
-                Result.withDefault False
-                    (Regexp.regexpMatchString re entry.message)
 
-            Err _ ->
-                String.contains (String.toLower pattern)
-                    (String.toLower entry.message)
+    else
+        matchesPattern pattern entry.message
+
 
 buildPayload : LogEntry -> String
 buildPayload entry =
-    Encode.encode 0
-        (
-        Encode.object
-            [ ( "source" , Encode.string entry.source )
-            , ( "level" , Encode.string (levelToString entry.level) )
-            , ( "scope" , Encode.string entry.scope )
-            , ( "message" , Encode.string entry.message )
-            , ( "timestamp" , Encode.int entry.timestamp )
-            ]
-        )
+    Encode.encode
+        0
+        (Encode.object
+            [ ( "source", Encode.string entry.source )
+            , ( "level", Encode.string (levelToString entry.level) )
+            , ( "scope", Encode.string entry.scope )
+            , ( "message", Encode.string entry.message )
+            , ( "timestamp", Encode.int entry.timestamp )
+            ])
+
 
 send : String -> LogEntry -> ()
 send url entry =
     let
-        payload =
-            buildPayload entry
-        cmd =
-            Exec.command "curl"
+        payload = buildPayload entry
+        cmdArgs =
+            Process.run
+                "curl"
                 [ "-s"
                 , "-X"
                 , "POST"
@@ -100,45 +96,41 @@ send url entry =
                 , payload
                 , url
                 ]
-        _ =
-            Exec.cmdRun cmd
+        _ = Task.run cmdArgs
     in
         ()
+
 
 processNewEntries : List WebhookRule -> List LogEntry -> ()
 processNewEntries rules entries =
     if List.isEmpty rules then
         ()
+
     else
         List.foldl
-            (
-            \entry _ ->
+            (\entry _ ->
                 List.foldl
-                    (
-                    \rule _ ->
-                        if rule.sourceName == entry.source &&
-                        matchesFilter rule.filter entry then
+                    (\rule _ ->
+                        if rule.sourceName == entry.source
+                            && matchesFilter rule.filter entry then
                             let
                                 _ =
                                     logMsg
-                                        (
-                                        "[webhook] filter matched: source=" ++
-                                        entry.source ++
-                                        " filter=" ++
-                                        rule.filter ++
-                                        " message=" ++ entry.message
-                                        )
-                                _ =
-                                    send rule.url entry
+                                        ("[webhook] filter matched: source="
+                                            ++ entry.source
+                                            ++ " filter="
+                                            ++ rule.filter
+                                            ++ " message="
+                                            ++ entry.message)
+                                _ = send rule.url entry
                                 _ =
                                     logMsg ("[webhook] fired: url=" ++ rule.url)
                             in
                                 ()
+
                         else
-                            ()
-                    )
+                            ())
                     ()
-                    rules
-            )
+                    rules)
             ()
             entries

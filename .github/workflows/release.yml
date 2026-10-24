@@ -33,10 +33,19 @@ jobs:
         with:
           go-version: "stable"
 
-      - name: Build binary from committed Go source
+      - name: Install Sky compiler
         run: |
-          cd sky-out
-          go build -gcflags="all=-l" -ldflags="-s -w" -o ../${{ matrix.artifact }} .
+          mkdir -p "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          curl -fsSL https://raw.githubusercontent.com/anzellai/sky/main/install.sh | SKY_INSTALL_DIR="$HOME/.local/bin" sh
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build binary
+        run: |
+          sky build src/Main.sky
+          cp sky-out/app* ${{ matrix.artifact }}
           ls -la ../${{ matrix.artifact }}
         shell: bash
 

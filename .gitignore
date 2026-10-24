@@ -14,3 +14,7 @@ go.sum
 # Environment
 .env
 sky-out/app
+sky-out/
+.skyapp/
+.DS_Store
+.sky/

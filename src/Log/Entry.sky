@@ -4,6 +4,7 @@ import Sky.Core.Prelude exposing (..)
 import Sky.Core.Json.Decode as Decode
 import Sky.Core.Json.Decode.Pipeline as Pipeline
 import Sky.Core.String as String
+import Sky.Core.Regex as Regex
 
 type Level
     = Debug
@@ -19,74 +20,76 @@ type alias LogEntry =
     , source : String
     }
 
+
 levelFromString : String -> Level
 levelFromString str =
     case String.toLower str of
+
         "debug" ->
             Debug
-        
+
         "info" ->
             Info
-        
+
         "warn" ->
             Warn
-        
+
         "error" ->
             ErrorLevel
-        
+
         _ ->
             Info
+
 
 levelToString : Level -> String
 levelToString level =
     case level of
+
         Debug ->
             "DEBUG"
-        
+
         Info ->
             "INFO"
-        
+
         Warn ->
             "WARN"
-        
+
         ErrorLevel ->
             "ERROR"
+
 
 levelToInt : Level -> Int
 levelToInt level =
     case level of
+
         Debug ->
             0
-        
+
         Info ->
             1
-        
+
         Warn ->
             2
-        
+
         ErrorLevel ->
             3
+
 
 levelDecoder : Decode.Decoder Level
 levelDecoder =
     Decode.map levelFromString Decode.string
 
+
 entryDecoder : Decode.Decoder LogEntry
 entryDecoder =
     Decode.succeed
-        (
-        \t l s m ->
-            { timestamp = t
-            , level = l
-            , scope = s
-            , message = m
-            , source = ""
-            }
-        )
+        (\t l s m ->
+            { timestamp = t, level = l, scope = s, message = m, source = "" })
         |> Pipeline.required "timestamp" Decode.int
         |> Pipeline.required "level" levelDecoder
         |> Pipeline.required "scope" Decode.string
         |> Pipeline.required "message" Decode.string
+
 
 decodeEntry : String -> String -> LogEntry
 decodeEntry line source =
@@ -107,15 +110,14 @@ parseRawLine line source =
         scope =
             if String.contains "|" line then
                 String.trim
-                    (
-                    case String.split "|" line of
+                    (case String.split "|" line of
 
                         _ :: rest ->
                             ""
 
                         _ ->
-                            ""
-                    )
+                            "")
+
             else
                 "raw"
     in
@@ -140,11 +142,27 @@ extractTimestamp line =
             let
                 timePart = String.slice 11 19 prefix
                 parts = String.split ":" timePart
-                h = Maybe.withDefault 0 (String.toInt (Maybe.withDefault "0" (List.head parts)))
-                m = Maybe.withDefault 0 (String.toInt (Maybe.withDefault "0" (List.head (List.drop 1 parts))))
-                s = Maybe.withDefault 0 (String.toInt (Maybe.withDefault "0" (List.head (List.drop 2 parts))))
+                h =
+                    Maybe.withDefault
+                        0
+                        (String.toInt (Maybe.withDefault "0" (List.head parts)))
+                m =
+                    Maybe.withDefault
+                        0
+                        (String.toInt
+                            (Maybe.withDefault
+                                "0"
+                                (List.head (List.drop 1 parts))))
+                s =
+                    Maybe.withDefault
+                        0
+                        (String.toInt
+                            (Maybe.withDefault
+                                "0"
+                                (List.head (List.drop 2 parts))))
             in
                 h * 3600 + m * 60 + s
+
         else
             0
 
@@ -156,9 +174,21 @@ detectLevel line =
     in
         if String.contains "error" lower || String.contains "err" lower then
             ErrorLevel
+
         else if String.contains "warn" lower then
             Warn
+
         else if String.contains "debug" lower then
             Debug
+
         else
             Info
+
+
+-- Case-insensitive regex match. The stdlib Regex.match treats an invalid
+-- pattern as no match, so a literal substring test keeps a half-typed
+-- pattern such as "a(" useful.
+matchesPattern : String -> String -> Bool
+matchesPattern pattern text =
+    Regex.match ("(?i)" ++ pattern) text
+        || String.contains (String.toLower pattern) (String.toLower text)
