@@ -7,13 +7,21 @@ import Sky.Core.File as File
 import Sky.Core.Task as Task
 
 type alias Source =
-    { name : String , command : String , filter : String , webhookUrl : String }
+    { name : String
+    , command : String
+    , filter : String
+    , webhookUrl : String
+    }
 
 type alias WebhookConfig =
-    { url : String , filter : String }
+    { url : String
+    , filter : String
+    }
 
 type alias AppConfig =
-    { sources : List Source , webhook : WebhookConfig }
+    { sources : List Source
+    , webhook : WebhookConfig
+    }
 
 type Section
     = NoSection
@@ -21,15 +29,21 @@ type Section
     | InWebhook WebhookConfig
 
 type alias ParseState =
-    { sources : List Source , webhook : WebhookConfig , section : Section }
+    { sources : List Source
+    , webhook : WebhookConfig
+    , section : Section
+    }
+
 
 emptySource : Source
 emptySource =
-    { name = "" , command = "" , filter = "" , webhookUrl = "" }
+    { name = "", command = "", filter = "", webhookUrl = "" }
+
 
 emptyWebhook : WebhookConfig
 emptyWebhook =
-    { url = "" , filter = "" }
+    { url = "", filter = "" }
+
 
 parseConfig : String -> AppConfig
 parseConfig path =
@@ -37,148 +51,160 @@ parseConfig path =
     -- Result here because parseConfig is called at startup before
     -- the Task pipeline starts. Empty config on read failure.
     case Task.run (File.readFile path) of
+
         Ok content ->
-            content
-                |> String.lines
+            content |> String.lines
                 |> parseLines
-                    { sources = []
-                    , webhook = emptyWebhook
-                    , section = NoSection
-                    }
+                       { sources = []
+                       , webhook = emptyWebhook
+                       , section = NoSection
+                       }
 
         Err _ ->
-            { sources = [] , webhook = emptyWebhook }
+            { sources = [], webhook = emptyWebhook }
+
 
 finalizeState : ParseState -> AppConfig
 finalizeState state =
     case state.section of
+
         InSource s ->
             { sources = List.append state.sources [ s ]
             , webhook = state.webhook
             }
-        
+
         InWebhook w ->
-            { sources = state.sources , webhook = w }
-        
+            { sources = state.sources, webhook = w }
+
         NoSection ->
-            { sources = state.sources , webhook = state.webhook }
+            { sources = state.sources, webhook = state.webhook }
+
 
 parseLines : ParseState -> List String -> AppConfig
 parseLines state lines =
     case lines of
+
         [] ->
             finalizeState state
-        
+
         line :: rest ->
             let
-                trimmed =
-                    String.trim line
+                trimmed = String.trim line
             in
                 if trimmed == "[[source]]" then
                     let
                         newState =
                             case state.section of
+
                                 InSource s ->
                                     { state
-                                    | sources = List.append state.sources [ s ]
-                                    , section = InSource emptySource
+                                        | sources =
+                                            List.append state.sources [ s ]
+                                        , section = InSource emptySource
                                     }
-                                
+
                                 InWebhook w ->
                                     { state
-                                    | webhook = w
-                                    , section = InSource emptySource
+                                        | webhook = w
+                                        , section = InSource emptySource
                                     }
-                                
+
                                 NoSection ->
                                     { state | section = InSource emptySource }
                     in
                         parseLines newState rest
-                else
-                    if trimmed == "[webhook]" then
-                        let
-                            newState =
-                                case state.section of
-                                    InSource s ->
-                                        { state
+
+                else if trimmed == "[webhook]" then
+                    let
+                        newState =
+                            case state.section of
+
+                                InSource s ->
+                                    { state
                                         | sources =
                                             List.append state.sources [ s ]
                                         , section = InWebhook state.webhook
-                                        }
-                                    
-                                    _ ->
-                                        { state
+                                    }
+
+                                _ ->
+                                    { state
                                         | section = InWebhook state.webhook
-                                        }
-                        in
-                            parseLines newState rest
-                    else
-                        let
-                            newState =
-                                case state.section of
-                                    InSource s ->
-                                        { state
+                                    }
+                    in
+                        parseLines newState rest
+
+                else
+                    let
+                        newState =
+                            case state.section of
+
+                                InSource s ->
+                                    { state
                                         | section =
                                             InSource (parseSourceLine trimmed s)
-                                        }
-                                    
-                                    InWebhook w ->
-                                        { state
+                                    }
+
+                                InWebhook w ->
+                                    { state
                                         | section =
                                             InWebhook
                                                 (parseWebhookLine trimmed w)
-                                        }
-                                    
-                                    NoSection ->
-                                        state
-                        in
-                            parseLines newState rest
+                                    }
+
+                                NoSection ->
+                                    state
+                    in
+                        parseLines newState rest
+
 
 parseSourceLine : String -> Source -> Source
 parseSourceLine line source =
     if String.startsWith "name" line then
         { source | name = extractValue line }
+
+    else if String.startsWith "command" line then
+        { source | command = extractValue line }
+
+    else if String.startsWith "filter" line then
+        { source | filter = extractValue line }
+
+    else if String.startsWith "webhook_url" line then
+        { source | webhookUrl = extractValue line }
+
     else
-        if String.startsWith "command" line then
-            { source | command = extractValue line }
-        else
-            if String.startsWith "filter" line then
-                { source | filter = extractValue line }
-            else
-                if String.startsWith "webhook_url" line then
-                    { source | webhookUrl = extractValue line }
-                else
-                    source
+        source
+
 
 parseWebhookLine : String -> WebhookConfig -> WebhookConfig
 parseWebhookLine line webhook =
     if String.startsWith "url" line then
         { webhook | url = extractValue line }
+
+    else if String.startsWith "filter" line then
+        { webhook | filter = extractValue line }
+
     else
-        if String.startsWith "filter" line then
-            { webhook | filter = extractValue line }
-        else
-            webhook
+        webhook
+
 
 extractValue : String -> String
 extractValue line =
     case String.split "=" line of
+
         [] ->
             ""
-        
+
         _ :: rest ->
-            rest
-                |> String.join "="
-                |> String.trim
-                |> stripQuotes
+            rest |> String.join "=" |> String.trim |> stripQuotes
+
 
 stripQuotes : String -> String
 stripQuotes s =
     let
-        len =
-            String.length s
+        len = String.length s
     in
         if String.startsWith "\"" s && String.endsWith "\"" s then
             String.slice 1 (len - 1) s
+
         else
             s

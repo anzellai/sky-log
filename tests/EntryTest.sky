@@ -1,0 +1,50 @@
+module EntryTest exposing (tests)
+
+import Sky.Core.Prelude exposing (..)
+import Sky.Test as Test exposing (Test)
+import Log.Entry as Entry
+
+
+tests : List Test
+tests =
+    [ Test.suite
+          "Log pattern compatibility"
+          [ Test.test
+                "accepts a valid expression"
+                (\_ -> Test.equal True (Entry.isValidPattern "error|warning"))
+          , Test.test
+                "rejects an unmatched opening parenthesis"
+                (\_ -> Test.equal False (Entry.isValidPattern "a("))
+          , Test.test
+                "rejects an unmatched closing parenthesis"
+                (\_ -> Test.equal False (Entry.isValidPattern "a)"))
+          , Test.test
+                "matches regular expressions without case sensitivity"
+                (\_ ->
+                    Test.equal
+                        True
+                        (Entry.matchesPattern
+                            "error.*timeout"
+                            "ERROR: network TIMEOUT"))
+          , Test.test
+                "does not accept a nonmatching expression"
+                (\_ ->
+                    Test.equal
+                        False
+                        (Entry.matchesPattern
+                            "error.*timeout"
+                            "warning: network delay"))
+          , Test.test
+                "invalid input falls back to a literal case-insensitive search"
+                (\_ ->
+                    Test.equal
+                        True
+                        (Entry.matchesPattern "A(" "prefix a( suffix"))
+          , Test.test
+                "invalid input does not match unrelated text"
+                (\_ -> Test.equal False (Entry.matchesPattern "a(" "unrelated"))
+          , Test.test
+                "empty input matches every entry"
+                (\_ -> Test.equal True (Entry.matchesPattern "" "anything"))
+          ]
+    ]
