@@ -212,15 +212,6 @@ init _ =
         -- System.args excludes the program name and returns a Task. At
         -- startup collapse it to a bare list, empty if the call fails.
         rawArgs = System.args () |> Task.run |> Result.withDefault []
-        _ =
-            if List.any (\a -> a == "--help" || a == "-h") rawArgs then
-                let
-                    _ = println helpText
-                in
-                    System.exit 0
-
-            else
-                ()
         args = List.filter (\a -> not (String.startsWith "-" a)) rawArgs
         config = Config.parseConfig "sky-log.toml"
         resolved = resolveMode args config.sources
@@ -922,4 +913,13 @@ appDef =
 
 
 main =
-    App.run appDef
+    System.args () |> Task.andThen start
+
+
+start : List String -> Task Error ()
+start args =
+    if List.any (\arg -> arg == "--help" || arg == "-h") args then
+        println helpText
+
+    else
+        App.run appDef
